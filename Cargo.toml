@@ -3,8 +3,15 @@ name = "lzma-rs"
 version = "0.1.0"
 authors = ["nathanwhit <nathan.whitaker01@gmail.com>"]
 edition = "2018"
+exclude = ["c_version/**/*", "cpp_version/**/*"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 crc = "1.8.1"
+smallvec = "0.6.10"
+
+[features]
+# Uses a u32 for probabilities during decoding. This improves performance in some cases,
+# at the cost of increased memory usage
+prob_u32 = []

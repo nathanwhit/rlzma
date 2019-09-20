@@ -1,2 +1,2 @@
-mod decoder;
+pub mod decoder;
 mod encoder;
