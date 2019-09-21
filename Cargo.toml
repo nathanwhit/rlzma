@@ -10,6 +10,7 @@ exclude = ["c_version/**/*", "cpp_version/**/*"]
 [dependencies]
 crc = "1.8.1"
 smallvec = "0.6.10"
+error-chain = "0.12.1"
 
 [features]
 # Uses a u32 for probabilities during decoding. This improves performance in some cases,
