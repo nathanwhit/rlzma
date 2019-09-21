@@ -5,4 +5,4 @@ extern crate alloc;
 mod common;
 pub mod lzma;
 pub mod lzma2;
-mod errors;
+pub mod errors;
