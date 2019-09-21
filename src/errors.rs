@@ -11,7 +11,7 @@ error_chain! {
     errors {
         NotEnoughInput(s: String) {
             description("Input LZMA stream ended prematurely"),
-            display("Expected: {}", s),
+            display("Expected {}", s),
         }
 
         EarlyEndMarker {
