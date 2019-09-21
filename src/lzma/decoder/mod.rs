@@ -157,6 +157,8 @@ impl LZMADecoder {
     const NUM_STATES: usize = 12;
 
     pub fn decode(&mut self) -> Result<LZMADecoderRes> {
+        self.range_dec.init()?;
+
         let (need_marker, size_defined, mut unpack_size) = if self.unpack_size == u64::MAX {
             (true, false, self.unpack_size)
         } else {
@@ -502,7 +504,7 @@ impl LZMARangeDecoder {
         Ok(())
     }
     
-    pub fn decode_direct_bits(&mut self, num_bits: u32) -> Result<u32> {
+    pub fn decode_direct_bits(&mut self, num_bits: usize) -> Result<u32> {
         let mut res: u32 = 0;
         let mut num_bits = num_bits;
         while num_bits > 0 {
@@ -546,19 +548,19 @@ impl LZMARangeDecoder {
 
 #[derive(Clone, Debug)]
 struct LZMABitTreeDecoder {
-    num_bits: u32,
+    num_bits: usize,
     probs: SmallVec<[Cell<LZMAProb>; 256]>
 }
 
 impl LZMABitTreeDecoder {
-    pub fn new(num_bits: u32) -> Self {
+    pub fn new(num_bits: usize) -> Self {
         LZMABitTreeDecoder {
             num_bits,
             probs: smallvec![Cell::new(PROB_INIT_VAL); 1 << num_bits as usize]
         }
     }
 
-    pub fn decode(&mut self, range_dec: &mut LZMARangeDecoder) -> Result<u32> {
+    pub fn decode(&mut self, range_dec: &mut LZMARangeDecoder) -> Result<usize> {
         let mut m: u32 = 1;
         for _ in 0..self.num_bits {
             m = (m << 1) + range_dec.decode_bit(&mut self.probs[m as usize]).chain_err(|| "Bit tree decoding failed")?;
@@ -566,7 +568,7 @@ impl LZMABitTreeDecoder {
         Ok((m - (1 << self.num_bits)).try_into()?)
     }
 
-    pub fn reverse_decode(&mut self, range_dec: &mut LZMARangeDecoder) -> Result<u32> {
+    pub fn reverse_decode(&mut self, range_dec: &mut LZMARangeDecoder) -> Result<usize> {
         let mut m: usize = 1;
         let mut symbol = 0;
         for i in 0..self.num_bits {
@@ -575,7 +577,7 @@ impl LZMABitTreeDecoder {
             m += bit as usize;
             symbol |= bit << i;
         }
-        Ok(symbol)
+        Ok(symbol.try_into()?)
     }
 
     pub fn rev_decode(probs: &mut [Cell<LZMAProb>], num_bits: usize, range_dec: &mut LZMARangeDecoder) -> Result<usize> {
@@ -612,7 +614,7 @@ impl LZMALenDecoder {
             high_coder: LZMABitTreeDecoder::new(8),
         }
     }
-    pub fn decode(&mut self, range_dec: &mut LZMARangeDecoder, pos_state: usize) -> Result<u32> {
+    pub fn decode(&mut self, range_dec: &mut LZMARangeDecoder, pos_state: usize) -> Result<usize> {
         Ok(if range_dec.decode_bit(&mut self.choice)? == 0 {
             self.low_coder[pos_state].decode(range_dec).chain_err(|| format!("Len decoding failed at position state: {}", pos_state))?
         } else if range_dec.decode_bit(&mut self.choice_2)? == 0 {
@@ -633,7 +635,7 @@ struct LZMADistanceDecoder {
 impl LZMADistanceDecoder {
     const END_POS_MODEL_IDX: usize = 14;
     const NUM_FULL_DISTS: usize = 1 << (Self::END_POS_MODEL_IDX >> 1);
-    const NUM_ALIGN_BITS: u32 = 4;
+    const NUM_ALIGN_BITS: usize = 4;
     pub const NUM_LEN_POS_STATES: usize = 4;
     pub fn new() -> Self {
         LZMADistanceDecoder {
@@ -654,13 +656,13 @@ impl LZMADistanceDecoder {
             return Ok(pos_slot as usize);
         }
         let num_direct_bits = (pos_slot >> 1) - 1;
-        let mut dist: u32 = (2 | (pos_slot & 1)) << num_direct_bits;
+        let mut dist: u32 = ((2 | (pos_slot & 1)) << num_direct_bits).try_into()?;
         if pos_slot < Self::END_POS_MODEL_IDX.try_into()? {
             let start_idx = dist as usize - pos_slot as usize;
             dist += LZMABitTreeDecoder::rev_decode(&mut self.pos_decs[start_idx..start_idx+num_direct_bits as usize], num_direct_bits as usize, range_dec)? as u32;
         } else {
             dist += range_dec.decode_direct_bits(num_direct_bits-Self::NUM_ALIGN_BITS).chain_err(|| "Failed to decode distance")? << Self::NUM_ALIGN_BITS;
-            dist += self.align_dec.reverse_decode(range_dec)?;
+            dist += self.align_dec.reverse_decode(range_dec)? as u32;
         }
         Ok(dist.try_into()?)
     }
