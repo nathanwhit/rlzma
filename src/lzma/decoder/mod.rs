@@ -4,7 +4,7 @@ use alloc::boxed::Box;
 use alloc::vec::Vec;
 use std::fs::File;
 use std::io;
-use std::io::{BufRead, BufReader, BufWriter, Read, Write};
+use std::io::{BufRead, BufReader, BufWriter, Read, Write, Bytes};
 use smallvec::{SmallVec, smallvec};
 use std::cell::Cell;
 use std::convert::{TryInto};
@@ -425,16 +425,15 @@ impl LZMAOutWindow {
 struct LZMAOutputStream(BufWriter<File>);
 
 #[derive(Debug)]
-struct LZMAInputStream(BufReader<File>, SmallVec<[Byte; 1]>);
+struct LZMAInputStream(Bytes<BufReader<File>>);
 
 impl LZMAInputStream {
     pub fn read_byte(&mut self) -> Result<Byte> {
-        self.0.read_exact(&mut self.1).map(|_| self.1[0]).map_err(|e| Error::with_chain(e, "failed to read from input buffer"))
+        self.0.next().ok_or_else(|| ErrorKind::NotEnoughInput(String::from("more data in the input stream")))?.map_err(|e| Error::with_chain(e, "failed to read from input buffer"))
     }
     pub fn new(input_file: File) -> LZMAInputStream {
         LZMAInputStream(
-            BufReader::new(input_file),
-            smallvec![0]
+            BufReader::new(input_file).bytes(),
         )
     }
 }
@@ -504,19 +503,23 @@ impl LZMARangeDecoder {
     }
     
     pub fn decode_direct_bits(&mut self, num_bits: u32) -> Result<u32> {
-        let mut res = 0;
-        for _ in 0..u32::max(num_bits, 1) {
+        let mut res: u32 = 0;
+        let mut num_bits = num_bits;
+        while num_bits > 0 {
             self.range >>= 1;
             self.code = self.code.overflowing_sub(self.range).0;
             let t = 0u32.overflowing_sub(self.code >> 31).0;
+            // self.code = self.code.overflowing_add(self.range & t).0;
             self.code = self.code.overflowing_add(self.range & t).0;
-
+            println!("Code: {}", self.code);
             if self.code == self.range {
                 self.corrupted = true;
             }
 
             self.normalize().chain_err(|| "Failed to decode direct bits")?;
             res <<= 1;
+            res = res.overflowing_add(t.overflowing_add(1).0).0;
+            num_bits-=1;
         }
         Ok(res)
     }
