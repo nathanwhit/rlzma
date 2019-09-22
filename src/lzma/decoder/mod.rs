@@ -13,6 +13,7 @@ use std::mem;
 use std::u64;
 use error_chain::{bail, ChainedError, ensure};
 pub use crate::errors::{Result, Error, ErrorKind, ResultExt};
+use std::ops::Not;
 
 type Byte = u8;
 
@@ -110,10 +111,11 @@ impl LZMADecoder {
         input_file.read_exact(&mut raw_unpack_size).expect("Failed to read uncompressed size from file");
         let unpack_size = u64::from_le_bytes(raw_unpack_size);
         let literal_probs = smallvec![Cell::new(PROB_INIT_VAL); 0x300<<(props.lc + props.lp)];
+        let dict_size = props.dict_size;
         LZMADecoder {
             props,
             literal_probs,
-            out_window: LZMAOutWindow::new(output_file),
+            out_window: LZMAOutWindow::new(output_file, dict_size),
             range_dec: LZMARangeDecoder::new(input_file),
             len_dec: LZMALenDecoder::new(),
             rep_len_dec: LZMALenDecoder::new(),
@@ -123,8 +125,8 @@ impl LZMADecoder {
     }
 
     fn decode_literal(&mut self, state: usize, rep0: u32) -> Result<()> {
-        let prev_byte = if self.out_window.is_empty() {
-            *self.out_window.get_byte(1)
+        let prev_byte = if self.out_window.is_empty().not() {
+            *self.out_window.get_byte(1)?
         } else {
             0
         };
@@ -133,7 +135,7 @@ impl LZMADecoder {
 
         let prob_base_idx = 0x300 * lit_state;
         if state >= 7 {
-            let mut match_byte = *self.out_window.get_byte(rep0 as usize + 1);
+            let mut match_byte = *self.out_window.get_byte(rep0 + 1)?;
             while symbol < 0x100 {
                 let match_bit = u32::from((match_byte >> 7) & 1);
                 match_byte <<= 1;
@@ -196,9 +198,7 @@ impl LZMADecoder {
                     unpack_size-=1;
                 }
                 1 => { 
-                    if (size_defined && unpack_size == 0) 
-                    || self.out_window.is_empty() { 
-                        // return Err(());
+                    if size_defined && unpack_size == 0 {
                         bail!(ErrorKind::NotEnoughInput(String::from("match encoded data")));
                     }
                     match self.decode_bit(&mut is_rep[state])? {
@@ -220,66 +220,74 @@ impl LZMADecoder {
                             if size_defined && unpack_size == 0 {
                                 bail!(ErrorKind::NotEnoughInput(String::from("Expected simple match encoded data")));
                             }
-                            ensure!(rep0 >= self.props.dict_size, ErrorKind::OverDictSize(rep0, self.props.dict_size));
-                            ensure!(!self.out_window.check_distance(rep0.try_into()?), format!("Distance was too large: {}", rep0));
+                            ensure!(rep0 < self.props.dict_size, ErrorKind::OverDictSize(rep0, self.props.dict_size));
+                            ensure!(self.out_window.check_distance(rep0), format!("Distance was too large: {}\nPosition was: {}", rep0, self.out_window.pos));
                             self.copy_match_symbols(len.try_into()?, rep0, size_defined)?;
                         }
                         // Rep match
-                        1 => match self.decode_bit(&mut is_rep_g0[state])? {
-                            // Rep match distance = rep0
-                            0 => match self.decode_bit(&mut is_rep0_long[state2])? {
-                                // Short rep match
-                                0 => {
-                                    state = Self::update_state_shortrep(state);
-                                    self.out_window.put_byte(*self.out_window.get_byte(rep0 as usize + 1 as usize))?;
-                                    unpack_size -= 1;
-                                    continue;
+                        1 => {
+                                if size_defined && unpack_size == 0 {
+                                    bail!(ErrorKind::NotEnoughInput(String::from("repeated match encoded data")))
                                 }
-                                // Rep match 0
-                                1 => {
-                                    let len =self.rep_len_dec.decode(&mut self.range_dec, pos_state)?;
-                                    state = Self::update_state_rep(state);
-                                    self.copy_match_symbols(len as usize, rep0, size_defined)?;
+                                if self.out_window.is_empty() {
+                                    bail!("Output window was empty when decoding a repeated match");
                                 }
-                                other => Self::unexpected_value(other)?
-                            }
-                            // Keep matching
-                            1 => match self.decode_bit(&mut is_rep_g1[state])? {
-                                // Rep match 1
-                                0 => {
-                                    mem::swap(&mut rep1, &mut rep0);
-                                    let len =self.rep_len_dec.decode(&mut self.range_dec, pos_state)?;
-                                    state = Self::update_state_rep(state);
-                                    self.copy_match_symbols(len as usize, rep0, size_defined)?;
-                                }
-                                // Keep matching
-                                1 => match self.decode_bit(&mut is_rep_g2[state])? {
-                                    // Rep match 2
+                                match self.decode_bit(&mut is_rep_g0[state])? {
+                                // Rep match distance = rep0
+                                0 => match self.decode_bit(&mut is_rep0_long[state2])? {
+                                    // Short rep match
                                     0 => {
-                                        let dist = rep2;
-                                        rep2 = rep1;
-                                        rep1 = rep0;
-                                        rep0 = dist;
-                                        let len =self.rep_len_dec.decode(&mut self.range_dec, pos_state)?;
-                                        state = Self::update_state_rep(state);
-                                        self.copy_match_symbols(len as usize, rep0, size_defined)?;
+                                        state = Self::update_state_shortrep(state);
+                                        self.out_window.put_byte(*self.out_window.get_byte(rep0 + 1)?)?;
+                                        unpack_size -= 1;
+                                        continue;
                                     }
-                                    // Rep match 3
+                                    // Rep match 0
                                     1 => {
-                                        let dist = rep3;
-                                        rep3 = rep2;
-                                        rep2 = rep1;
-                                        rep1 = rep0;
-                                        rep0 = dist;
                                         let len =self.rep_len_dec.decode(&mut self.range_dec, pos_state)?;
                                         state = Self::update_state_rep(state);
                                         self.copy_match_symbols(len as usize, rep0, size_defined)?;
                                     }
                                     other => Self::unexpected_value(other)?
                                 }
+                                // Keep matching
+                                1 => match self.decode_bit(&mut is_rep_g1[state])? {
+                                    // Rep match 1
+                                    0 => {
+                                        mem::swap(&mut rep1, &mut rep0);
+                                        let len =self.rep_len_dec.decode(&mut self.range_dec, pos_state)?;
+                                        state = Self::update_state_rep(state);
+                                        self.copy_match_symbols(len as usize, rep0, size_defined)?;
+                                    }
+                                    // Keep matching
+                                    1 => match self.decode_bit(&mut is_rep_g2[state])? {
+                                        // Rep match 2
+                                        0 => {
+                                            let dist = rep2;
+                                            rep2 = rep1;
+                                            rep1 = rep0;
+                                            rep0 = dist;
+                                            let len =self.rep_len_dec.decode(&mut self.range_dec, pos_state)?;
+                                            state = Self::update_state_rep(state);
+                                            self.copy_match_symbols(len as usize, rep0, size_defined)?;
+                                        }
+                                        // Rep match 3
+                                        1 => {
+                                            let dist = rep3;
+                                            rep3 = rep2;
+                                            rep2 = rep1;
+                                            rep1 = rep0;
+                                            rep0 = dist;
+                                            let len =self.rep_len_dec.decode(&mut self.range_dec, pos_state)?;
+                                            state = Self::update_state_rep(state);
+                                            self.copy_match_symbols(len as usize, rep0, size_defined)?;
+                                        }
+                                        other => Self::unexpected_value(other)?
+                                    }
+                                    other => Self::unexpected_value(other)?
+                                }
                                 other => Self::unexpected_value(other)?
                             }
-                            other => Self::unexpected_value(other)?
                         }
                         other => Self::unexpected_value(other)?
                     }
@@ -369,17 +377,17 @@ pub enum LZMADecoderMode {
 #[derive(Debug)]
 struct LZMAOutWindow {
     buf: Vec<Byte>,
-    pos: usize,
-    size: usize,
+    pos: u32,
+    size: u32,
     pub total_pos: usize,
     pub outstream: LZMAOutputStream,
 }
 
 impl LZMAOutWindow {
-    pub fn new(out_file: File) -> LZMAOutWindow {
-        let buf = Vec::new();
+    pub fn new(out_file: File, dict_size: u32) -> LZMAOutWindow {
+        let size = dict_size;
+        let buf = vec![0u8; size.try_into().unwrap()];
         let pos = 0;
-        let size = 0;
         let total_pos = 0;
         let outstream = LZMAOutputStream::new(out_file);
         LZMAOutWindow {
@@ -396,26 +404,29 @@ impl LZMAOutWindow {
     fn put_byte(&mut self, b: Byte) -> Result<()> {
         self.total_pos += 1;
         self.buf.push(b);
+        self.pos += 1;
         if self.is_full() {
             self.pos = 0;
         }
         self.outstream.write_byte(b)?;
         Ok(())
     }
-    fn get_byte(&self, dist: usize) -> &Byte {
-        &self.buf[if dist <= self.pos {
+    fn get_byte(&self, dist: u32) -> Result<&Byte> {
+        let idx = if dist <= self.pos {
             self.pos - dist
         } else {
             self.size - dist + self.pos
-        }]
+        };
+        self.buf.get(idx as usize)
+            .ok_or_else(|| format!("The index {} was larger than the output buffer's size: {}", idx, self.size).into())
     }
-    fn copy_match(&mut self, dist: usize, len: usize) -> Result<()>{
+    fn copy_match(&mut self, dist: u32, len: usize) -> Result<()>{
         for _ in 0..len {
-            self.put_byte(*self.get_byte(dist))?
+            self.put_byte(*self.get_byte(dist)?)?
         }
         Ok(())
     }
-    fn check_distance(&self, dist: usize) -> bool {
+    fn check_distance(&self, dist: u32) -> bool {
         dist <= self.pos || self.is_full()
     }
     fn is_empty(&self) -> bool {
@@ -569,15 +580,7 @@ impl LZMABitTreeDecoder {
     }
 
     pub fn reverse_decode(&mut self, range_dec: &mut LZMARangeDecoder) -> Result<usize> {
-        let mut m: usize = 1;
-        let mut symbol = 0;
-        for i in 0..self.num_bits {
-            let bit = range_dec.decode_bit(&mut self.probs[m]).chain_err(|| "Bit tree reverse decoding failed")?;
-            m <<= 1;
-            m += bit as usize;
-            symbol |= bit << i;
-        }
-        Ok(symbol.try_into()?)
+        LZMABitTreeDecoder::rev_decode(&mut self.probs[..], self.num_bits, range_dec)
     }
 
     pub fn rev_decode(probs: &mut [Cell<LZMAProb>], num_bits: usize, range_dec: &mut LZMARangeDecoder) -> Result<usize> {
@@ -658,8 +661,7 @@ impl LZMADistanceDecoder {
         let num_direct_bits = (pos_slot >> 1) - 1;
         let mut dist: u32 = ((2 | (pos_slot & 1)) << num_direct_bits).try_into()?;
         if pos_slot < Self::END_POS_MODEL_IDX.try_into()? {
-            let start_idx = dist as usize - pos_slot as usize;
-            dist += LZMABitTreeDecoder::rev_decode(&mut self.pos_decs[start_idx..start_idx+num_direct_bits as usize], num_direct_bits as usize, range_dec)? as u32;
+            dist += LZMABitTreeDecoder::rev_decode(&mut self.pos_decs[..], num_direct_bits as usize, range_dec)? as u32;
         } else {
             dist += range_dec.decode_direct_bits(num_direct_bits-Self::NUM_ALIGN_BITS).chain_err(|| "Failed to decode distance")? << Self::NUM_ALIGN_BITS;
             dist += self.align_dec.reverse_decode(range_dec)? as u32;
