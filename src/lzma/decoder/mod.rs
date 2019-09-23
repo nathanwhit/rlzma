@@ -52,7 +52,6 @@ impl LZMAProps {
             lc,
             lp,
             pb,
-            padding: 0,
             dict_size,
         }
     }
