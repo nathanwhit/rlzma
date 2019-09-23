@@ -25,12 +25,10 @@ type LZMAProb = u16;
 const MIN_MATCH_LEN: usize = 2;
 
 #[derive(Clone, Debug)]
-#[repr(C)]
 struct LZMAProps {
     lc: Byte,
     lp: Byte,
     pb: Byte,
-    padding: Byte,
     dict_size: u32,
 }
 
