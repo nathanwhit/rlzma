@@ -5,9 +5,14 @@ use std::fs::{File};
 use std::path::Path;
 use error_chain::ChainedError;
 use std::process::exit;
+
+use env_logger;
 // use lzma_rs::errors::Result;
 
 fn main() {
+    env_logger::init();
+
+
     let in_path = Path::new("simple.txt.lzma");
     let out_path = Path::new("simple_decoded.txt");
     let out_file = File::create(out_path).expect("Failed to create output file");
