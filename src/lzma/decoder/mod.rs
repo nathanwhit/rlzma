@@ -181,7 +181,7 @@ impl LZMADecoder {
         let mut state = 0;
 
         loop {
-            if size_defined && unpack_size == 0 
+            if size_defined && self.unpack_size == 0 
             && !need_marker && self.range_dec.is_finished() {
                 return Ok(LZMADecoderRes::FinishedUnmarked);
             }
@@ -190,16 +190,16 @@ impl LZMADecoder {
             match self.decode_bit(&mut is_match[state2])? {
                 // Literal
                 0 => {
-                    if size_defined && unpack_size == 0 {
+                    if size_defined && self.unpack_size == 0 {
                         // return Err(Error::;
                         bail!(ErrorKind::NotEnoughInput(String::from("literal data")));
                     }
                     self.decode_literal(state, rep0)?;
                     state = LZMADecoder::update_state_literal(state);
-                    unpack_size-=1;
+                    self.unpack_size-=1;
                 }
                 1 => { 
-                    if size_defined && unpack_size == 0 {
+                    if size_defined && self.unpack_size == 0 {
                         bail!(ErrorKind::NotEnoughInput(String::from("match encoded data")));
                     }
                     match self.decode_bit(&mut is_rep[state])? {
@@ -218,7 +218,7 @@ impl LZMADecoder {
                                     bail!(ErrorKind::EarlyEndMarker);
                                 }
                             }
-                            if size_defined && unpack_size == 0 {
+                            if size_defined && self.unpack_size == 0 {
                                 bail!(ErrorKind::NotEnoughInput(String::from("Expected simple match encoded data")));
                             }
                             ensure!(rep0 < self.props.dict_size, ErrorKind::OverDictSize(rep0, self.props.dict_size));
@@ -227,7 +227,7 @@ impl LZMADecoder {
                         }
                         // Rep match
                         1 => {
-                                if size_defined && unpack_size == 0 {
+                                if size_defined && self.unpack_size == 0 {
                                     bail!(ErrorKind::NotEnoughInput(String::from("repeated match encoded data")))
                                 }
                                 if self.out_window.is_empty() {
@@ -240,7 +240,7 @@ impl LZMADecoder {
                                     0 => {
                                         state = Self::update_state_shortrep(state);
                                         self.out_window.put_byte(*self.out_window.get_byte(rep0 + 1)?)?;
-                                        unpack_size -= 1;
+                                        self.unpack_size -= 1;
                                         continue;
                                     }
                                     // Rep match 0
