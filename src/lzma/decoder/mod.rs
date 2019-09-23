@@ -386,7 +386,7 @@ struct LZMAOutWindow {
 impl LZMAOutWindow {
     pub fn new(out_file: File, dict_size: u32) -> LZMAOutWindow {
         let size = dict_size;
-        let buf = vec![0u8; size.try_into().unwrap()];
+        let buf = Vec::with_capacity(dict_size as usize);
         let pos = 0;
         let total_pos = 0;
         let outstream = LZMAOutputStream::new(out_file);
