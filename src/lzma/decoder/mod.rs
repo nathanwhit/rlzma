@@ -316,8 +316,8 @@ impl LZMADecoder {
         } else {
             false
         };
-        self.out_window.copy_match(rep0.try_into()?, len)?;
         self.out_window.copy_match(rep0 + 1, len)?;
+        self.unpack_size -= len as u64;
         if has_error {
             bail!(ErrorKind::NotEnoughInput(String::from("matched symbols to copy")));
         } else {
