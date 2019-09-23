@@ -153,7 +153,6 @@ impl LZMADecoder {
             }
 
             self.out_window.put_byte((symbol - 0x100) as Byte).chain_err(|| "Decode of literal data failed!")?;
-        }
         Ok(())
     }
 
@@ -162,10 +161,10 @@ impl LZMADecoder {
     pub fn decode(&mut self) -> Result<LZMADecoderRes> {
         self.range_dec.init()?;
 
-        let (need_marker, size_defined, mut unpack_size) = if self.unpack_size == u64::MAX {
-            (true, false, self.unpack_size)
+        let (need_marker, size_defined) = if self.unpack_size == u64::MAX {
+            (true, false)
         } else {
-            (true, true, self.unpack_size)
+            (true, true)
         };
 
 
@@ -205,10 +204,10 @@ impl LZMADecoder {
                     match self.decode_bit(&mut is_rep[state])? {
                         // Simple match
                         0 => {
-                            let len = self.len_dec.decode(&mut self.range_dec, pos_state)?;
                             rep3 = rep2;
                             rep2 = rep1;
                             rep1 = rep0;
+                            let len = self.len_dec.decode(&mut self.range_dec, pos_state)?;
                             state = LZMADecoder::update_state_match(state);
                             rep0 = self.dist_dec.decode_distance(len.try_into()?, &mut self.range_dec)? as u32;
                             if rep0 == 0xFFFF_FFFF {
@@ -318,7 +317,7 @@ impl LZMADecoder {
             false
         };
         self.out_window.copy_match(rep0.try_into()?, len)?;
-        self.unpack_size -= len as u64;
+        self.out_window.copy_match(rep0 + 1, len)?;
         if has_error {
             bail!(ErrorKind::NotEnoughInput(String::from("matched symbols to copy")));
         } else {
