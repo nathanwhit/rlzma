@@ -130,25 +130,26 @@ impl LZMADecoder {
         let mut symbol = 1;
         let lit_state = ((self.out_window.total_pos & ((1 << self.props.lp) - 1)) << self.props.lc) + (prev_byte >> (8 - self.props.lc)) as usize;
 
-        let prob_base_idx = 0x300 * lit_state;
+        let probs = &mut self.literal_probs[0x300 * lit_state..];
         if state >= 7 {
+            let mut match_byte: usize = usize::from(*self.out_window.get_byte(rep0 + 1)?);
             loop {
                 let match_bit: usize = (match_byte >> 7) & 1;
+                match_byte <<= 1;
     
                 let bit: usize = self.range_dec.decode_bit(&mut probs[((1 + match_bit) << 8) as usize + symbol])? as usize;
-                let bit: usize = self.range_dec.decode_bit(&mut probs[((1 + match_bit) << 8) as usize + symbol])? as usize;
                 symbol = (symbol << 1) | bit;
+                if match_bit != bit {
                     break;
                 }
                 if symbol >= 0x100 {
-                if symbol >= 0x100 {
-                    break;
                     break;
             }
             }
+        }
 
             while symbol < 0x100 {
-                symbol = (symbol << 1) | self.range_dec.decode_bit(&mut self.literal_probs[prob_base_idx+symbol])? as usize;
+            symbol = (symbol << 1) | self.range_dec.decode_bit(&mut probs[symbol])? as usize;
             }
 
             self.out_window.put_byte((symbol - 0x100) as Byte).chain_err(|| "Decode of literal data failed!")?;
