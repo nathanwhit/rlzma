@@ -135,16 +135,19 @@ impl LZMADecoder {
 
         let prob_base_idx = 0x300 * lit_state;
         if state >= 7 {
-            let mut match_byte = *self.out_window.get_byte(rep0 + 1)?;
-            while symbol < 0x100 {
-                let match_bit = u32::from((match_byte >> 7) & 1);
-                match_byte <<= 1;
+            loop {
+                let match_bit: usize = (match_byte >> 7) & 1;
     
-                let bit = self.range_dec.decode_bit(&mut self.literal_probs[prob_base_idx + ((1 + match_bit as usize) << 8) as usize + symbol])?;
-                symbol = (symbol << 1) | bit as usize;
-                if match_bit != bit {
+                let bit: usize = self.range_dec.decode_bit(&mut probs[((1 + match_bit) << 8) as usize + symbol])? as usize;
+                let bit: usize = self.range_dec.decode_bit(&mut probs[((1 + match_bit) << 8) as usize + symbol])? as usize;
+                symbol = (symbol << 1) | bit;
                     break;
                 }
+                if symbol >= 0x100 {
+                if symbol >= 0x100 {
+                    break;
+                    break;
+            }
             }
 
             while symbol < 0x100 {
@@ -518,7 +521,7 @@ impl LZMARangeDecoder {
     pub fn decode_direct_bits(&mut self, num_bits: usize) -> Result<u32> {
         let mut res: u32 = 0;
         let mut num_bits = num_bits;
-        while num_bits > 0 {
+        loop {
             self.range >>= 1;
             self.code = self.code.overflowing_sub(self.range).0;
             let t = 0u32.overflowing_sub(self.code >> 31).0;
@@ -532,7 +535,11 @@ impl LZMARangeDecoder {
             self.normalize().chain_err(|| "Failed to decode direct bits")?;
             res <<= 1;
             res = res.overflowing_add(t.overflowing_add(1).0).0;
+            if num_bits <= 1 {
+                break;
+            } else {
             num_bits-=1;
+        }
         }
         Ok(res)
     }
