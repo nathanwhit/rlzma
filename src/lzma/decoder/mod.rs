@@ -408,6 +408,9 @@ impl LZMAOutWindow {
         self.pos += 1;
         if self.is_full() {
             self.pos = 0;
+            unsafe {
+                self.buf.set_len(0)
+            }
         }
         self.outstream.write_byte(b)?;
         Ok(())
