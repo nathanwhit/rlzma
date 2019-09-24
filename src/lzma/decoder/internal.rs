@@ -69,7 +69,7 @@ impl LZMAOutWindow {
 }
 
 #[derive(Debug)]
-pub(crate) struct LZMAOutputStream(File);
+pub(crate) struct LZMAOutputStream(BufWriter<File>);
 
 #[derive(Debug)]
 pub(crate) struct LZMAInputStream(Bytes<BufReader<File>>);
@@ -92,7 +92,7 @@ impl LZMAOutputStream {
         Ok(())
     }
     pub fn new(out_file: File) -> LZMAOutputStream {
-        LZMAOutputStream(out_file)
+        LZMAOutputStream(BufWriter::new(out_file))
     }
 }
 
