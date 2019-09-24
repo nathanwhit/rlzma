@@ -59,7 +59,7 @@ impl LZMAOutWindow {
         Ok(())
     }
     pub(crate) fn check_distance(&self, dist: u32) -> bool {
-        dist <= self.pos || self.is_full()
+        dist <= self.total_pos as u32 || self.is_full()
     }
     pub(crate) fn is_empty(&self) -> bool {
         self.pos == 0 && !self.is_full()
