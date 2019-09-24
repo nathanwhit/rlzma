@@ -75,7 +75,7 @@ pub(crate) struct LZMAOutputStream(File);
 pub(crate) struct LZMAInputStream(Bytes<BufReader<File>>);
 
 impl LZMAInputStream {
-    pub fn read_byte(&mut self) -> Result<Byte> {
+    pub(crate) fn read_byte(&mut self) -> Result<Byte> {
         self.0.next().ok_or_else(|| ErrorKind::NotEnoughInput(String::from("more data in the input stream")))?.map_err(|e| Error::with_chain(e, "failed to read from input buffer"))
     }
     pub fn new(input_file: File) -> LZMAInputStream {
