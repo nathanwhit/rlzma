@@ -215,7 +215,7 @@ impl LZMADecoder {
                             rep1 = rep0;
                             let len = self.len_dec.decode(&mut self.range_dec, pos_state)?;
                             state = LZMADecoder::update_state_match(state);
-                            self.dist_dec.decode_distance(&mut rep0, len.try_into()?, &mut self.range_dec)?;
+                            rep0 = self.dist_dec.decode_distance(len, &mut self.range_dec)?;
                             if rep0 == 0xFFFF_FFFF {
                                 return if self.range_dec.is_finished() {
                                     Ok(LZMADecoderRes::FinishedMarked)
