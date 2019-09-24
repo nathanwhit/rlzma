@@ -37,12 +37,11 @@ fn main() {
     };
     let out_file = File::create(&out_pathbuf).expect("Failed to create output file");
     let in_file = File::open(in_path).expect("Failed to open input file");
-    let mut decoder = LZMADecoder::new(in_file, out_file);
-    decoder.decode().unwrap_or_else(|e| {
-        eprintln!("{}", e.display_chain().to_string());
-        #[cfg(feature = "debugging")]
-        eprintln!("Wrote state at error time to : {}", decoder.dump_state().unwrap());
 
-        exit(1);
-    });
+    match LZMADecoder::<File>::decode_file(in_file, out_file) {
+        Ok(..) => (),
+        Err(e) => {
+            eprintln!("An error occurred: {}", e.display_chain())
+        }
+    }
 }
