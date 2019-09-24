@@ -16,6 +16,7 @@ pub use error_chain::{bail, ChainedError, ensure};
 pub use crate::errors::{Result, Error, ErrorKind, ResultExt};
 use std::ops::Not;
 
+#[cfg(feature = "debugging")]
 pub use log::{info, log, warn, debug};
 use log::Level;
 
@@ -109,7 +110,9 @@ impl LZMADecoder {
     }
 
     fn decode_literal(&mut self, state: usize, rep0: u32) -> Result<()> {
+        #[cfg(feature = "debugging")]
         debug!("decoding literal");
+
         let prev_byte = if self.out_window.is_empty().not() {
             *self.out_window.get_byte(1)?
         } else {
@@ -141,7 +144,10 @@ impl LZMADecoder {
             }
 
             self.out_window.put_byte((symbol - 0x100) as Byte).chain_err(|| "Decode of literal data failed!")?;
+
+            #[cfg(feature = "debugging")]
             debug!("literal was : {}", symbol-0x100);
+
         Ok(())
     }
 
@@ -193,13 +199,15 @@ impl LZMADecoder {
                     match self.decode_bit(&mut is_rep[state])? {
                         // Simple match
                         0 => {
+                            #[cfg(feature = "debugging")]
                             debug!("decoding simple match");
+
                             rep3 = rep2;
                             rep2 = rep1;
                             rep1 = rep0;
                             let len = self.len_dec.decode(&mut self.range_dec, pos_state)?;
                             state = LZMADecoder::update_state_match(state);
-                            rep0 = self.dist_dec.decode_distance(len.try_into()?, &mut self.range_dec)? as u32;
+                            self.dist_dec.decode_distance(&mut rep0, len.try_into()?, &mut self.range_dec)?;
                             if rep0 == 0xFFFF_FFFF {
                                 return if self.range_dec.is_finished() {
                                     Ok(LZMADecoderRes::FinishedMarked)
@@ -216,7 +224,9 @@ impl LZMADecoder {
                         }
                         // Rep match
                         1 => {
+                                #[cfg(feature = "debugging")]
                                 debug!("decoding rep match");
+
                                 if size_defined && self.unpack_size == 0 {
                                     bail!(ErrorKind::NotEnoughInput(String::from("repeated match encoded data")))
                                 }
@@ -228,7 +238,9 @@ impl LZMADecoder {
                                 0 => match self.decode_bit(&mut is_rep0_long[state2])? {
                                     // Short rep match
                                     0 => {
+                                        #[cfg(feature = "debugging")]
                                         debug!("decoding short rep match");
+
                                         state = Self::update_state_shortrep(state);
                                         self.out_window.put_byte(*self.out_window.get_byte(rep0 + 1)?)?;
                                         self.unpack_size -= 1;
@@ -236,7 +248,9 @@ impl LZMADecoder {
                                     }
                                     // Rep match 0
                                     1 => {
+                                        #[cfg(feature = "debugging")]
                                         debug!("decoding rep match 0");
+
                                         let len =self.rep_len_dec.decode(&mut self.range_dec, pos_state)?;
                                         state = Self::update_state_rep(state);
                                         self.copy_match_symbols(len as usize, rep0, size_defined)?;
@@ -247,7 +261,9 @@ impl LZMADecoder {
                                 1 => match self.decode_bit(&mut is_rep_g1[state])? {
                                     // Rep match 1
                                     0 => {
+                                        #[cfg(feature = "debugging")]
                                         debug!("decoding rep match 1");
+
                                         mem::swap(&mut rep1, &mut rep0);
                                         let len =self.rep_len_dec.decode(&mut self.range_dec, pos_state)?;
                                         state = Self::update_state_rep(state);
@@ -257,7 +273,9 @@ impl LZMADecoder {
                                     1 => match self.decode_bit(&mut is_rep_g2[state])? {
                                         // Rep match 2
                                         0 => {
+                                            #[cfg(feature = "debugging")]
                                             debug!("decoding rep match 2");
+
                                             let dist = rep2;
                                             rep2 = rep1;
                                             rep1 = rep0;
@@ -268,7 +286,9 @@ impl LZMADecoder {
                                         }
                                         // Rep match 3
                                         1 => {
+                                            #[cfg(feature = "debugging")]
                                             debug!("decoding rep match 3");
+
                                             let dist = rep3;
                                             rep3 = rep2;
                                             rep2 = rep1;

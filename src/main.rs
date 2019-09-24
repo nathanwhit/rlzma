@@ -5,11 +5,12 @@ use std::fs::{File};
 use std::path::Path;
 use error_chain::ChainedError;
 use std::process::exit;
-
+#[cfg(debugging)]
 use env_logger;
 // use lzma_rs::errors::Result;
 
 fn main() {
+    #[cfg(debugging)]
     env_logger::init();
 
 
