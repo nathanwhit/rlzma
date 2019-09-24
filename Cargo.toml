@@ -26,3 +26,6 @@ default = ["debugging"]
 prob_u32 = []
 
 debugging = ["log", "env_logger", "rand"]
+
+[profile.release]
+debug = true
