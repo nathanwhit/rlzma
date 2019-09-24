@@ -70,10 +70,10 @@ impl LZMAProps {
 }
 
 #[derive(Debug)]
-pub struct LZMADecoder {
+pub struct LZMADecoder<T: Write> {
     props: LZMAProps,
     literal_probs: SmallVec<[Cell<LZMAProb>; 2048]>,
-    out_window: LZMAOutWindow,
+    out_window: LZMAOutWindow<T>,
     range_dec: LZMARangeDecoder,
     len_dec: LZMALenDecoder,
     rep_len_dec: LZMALenDecoder,
@@ -81,14 +81,14 @@ pub struct LZMADecoder {
     unpack_size: u64,
 }
 
-impl fmt::Display for LZMADecoder {
+impl<T: Write> fmt::Display for LZMADecoder<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "LZMADecoder {{\n\tprops: {:?},\n\tout_window: {},\n\trange_dec: {:?},\n\tlen_dec: {:?},\n\trep_len_dec: {:?},\n\tdist_dec: {:?},\n\tunpack_size: {}\n}}", self.props, self.out_window, self.range_dec, self.len_dec, self.rep_len_dec, self.dist_dec, self.unpack_size)
     }
 }
 
-impl LZMADecoder {
-    pub fn new(mut input_file: File, output_file: File) -> LZMADecoder {
+impl<T: Write> LZMADecoder<T> {
+    pub fn new(mut input_file: File, output_file: T) -> LZMADecoder<T> {
         let mut raw_props: [Byte; 5] = [0; 5];
         input_file.read_exact(&mut raw_props).expect("Failed to read properties from file");
         let props = LZMAProps::decode_properties(&raw_props);
@@ -107,6 +107,17 @@ impl LZMADecoder {
             dist_dec: LZMADistanceDecoder::new(),
             unpack_size
         }
+    }
+    
+    pub fn decode_file(input_file: File, output_file: File) -> Result<()> {
+        let mut decoder = LZMADecoder::new(input_file, output_file);
+        decoder.decode().map_err(|e| {
+            eprintln!("{}", e.display_chain().to_string());
+            #[cfg(feature = "debugging")]
+            eprintln!("Wrote state at error time to : {}", decoder.dump_state().unwrap());
+            e
+        })?;
+        Ok(())
     }
 
     fn decode_literal(&mut self, state: usize, rep0: u32) -> Result<()> {
@@ -189,7 +200,7 @@ impl LZMADecoder {
                         bail!(ErrorKind::NotEnoughInput(String::from("literal data")));
                     }
                     self.decode_literal(state, rep0)?;
-                    state = LZMADecoder::update_state_literal(state);
+                    state = Self::update_state_literal(state);
                     self.unpack_size-=1;
                 }
                 1 => { 
@@ -206,7 +217,7 @@ impl LZMADecoder {
                             rep2 = rep1;
                             rep1 = rep0;
                             let len = self.len_dec.decode(&mut self.range_dec, pos_state)?;
-                            state = LZMADecoder::update_state_match(state);
+                            state = Self::update_state_match(state);
                             rep0 = self.dist_dec.decode_distance(len, &mut self.range_dec)?;
                             if rep0 == 0xFFFF_FFFF {
                                 return if self.range_dec.is_finished() {
@@ -341,7 +352,7 @@ impl LZMADecoder {
         }
     }
 
-    fn unexpected_value<T: Debug>(val: T) -> Result<()> {
+    fn unexpected_value<V: Debug>(val: V) -> Result<()> {
         bail!(format!("Unexpected value found: {:?}", val))
     }
 

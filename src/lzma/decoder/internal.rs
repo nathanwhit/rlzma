@@ -3,22 +3,22 @@ use super::*;
 mod tests;
 
 #[derive(Debug)]
-pub(crate) struct LZMAOutWindow {
+pub(crate) struct LZMAOutWindow<T: Write> {
     buf: Vec<Byte>,
     pub(super) pos: u32,
     size: u32,
     pub total_pos: usize,
-    pub outstream: LZMAOutputStream,
+    pub outstream: LZMAOutputStream<T>,
 }
 
-impl Display for LZMAOutWindow {
+impl<T: Write> Display for LZMAOutWindow<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "LZMAOutWindow {{\n\tbuf[pos]: {},\n\tpos: {},\n\t size: {},\n\ttotal_pos: {}\n}}", self.buf[self.pos as usize], self.pos, self.size, self.total_pos)
     }
 }
 
-impl LZMAOutWindow {
-    pub fn new(out_file: File, dict_size: u32) -> LZMAOutWindow {
+impl<T: Write> LZMAOutWindow<T> {
+    pub fn new(out_file: T, dict_size: u32) -> LZMAOutWindow<T> {
         let size = dict_size;
         let buf = vec![0u8; dict_size as usize];
         let pos = 0;
@@ -69,7 +69,7 @@ impl LZMAOutWindow {
 }
 
 #[derive(Debug)]
-pub(crate) struct LZMAOutputStream(File);
+pub(crate) struct LZMAOutputStream<T: Write>(Box<T>);
 
 #[derive(Debug)]
 pub(crate) struct LZMAInputStream(Bytes<BufReader<File>>);
@@ -85,14 +85,14 @@ impl LZMAInputStream {
     }
 }
 
-impl LZMAOutputStream {
+impl<T: Write> LZMAOutputStream<T> {
     pub fn write_byte(&mut self, b: Byte) -> Result<()>{
         let len_written = self.0.write(&[b])?;
         ensure!(len_written==1, ErrorKind::WriteFailed);
         Ok(())
     }
-    pub fn new(out_file: File) -> LZMAOutputStream {
-        LZMAOutputStream(out_file)
+    pub fn new(out: T) -> LZMAOutputStream<T> {
+        LZMAOutputStream(Box::new(out))
     }
 }
 
