@@ -376,6 +376,21 @@ impl LZMADecoder {
             11
         }
     }
+    #[cfg(feature = "debugging")]
+    pub fn dump_state(&self) -> Result<String> {
+        use rand::Rng;
+        let mut rng = rand::thread_rng();
+        loop {
+            let dump_name = format!("logs/error-{}.log", rng.gen::<u32>());
+            let dumpfile_path = Path::new(&dump_name);
+            if dumpfile_path.exists().not() {
+                let mut dumpfile = File::create(dumpfile_path)?;
+                dumpfile.write_all(format!("{}", self).as_bytes())?;
+                return Ok(dump_name.to_owned());
+            }
+        }
+        
+    }
 }
 
 pub enum LZMADecoderRes {

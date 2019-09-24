@@ -14,6 +14,7 @@ error-chain = "0.12.1"
 
 log = {version = "0.4.8", optional = true}
 env_logger = {version = "0.6.2", optional = true}
+rand = {version = "0.7.2", optional = true}
 
 [features]
 default = ["debugging"]
@@ -21,4 +22,4 @@ default = ["debugging"]
 # at the cost of increased memory usage
 prob_u32 = []
 
-debugging = ["log", "env_logger"]
+debugging = ["log", "env_logger", "rand"]
