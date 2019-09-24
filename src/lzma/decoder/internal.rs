@@ -311,7 +311,7 @@ impl LZMADistanceDecoder {
         }
     }
 
-    pub fn decode_distance(&mut self, len: usize, range_dec: &mut LZMARangeDecoder) -> Result<usize> {
+    pub fn decode_distance(&mut self, len: usize, range_dec: &mut LZMARangeDecoder) -> Result<u32> {
         let mut len_state = len;
         if len_state > Self::NUM_LEN_POS_STATES - 1{
             len_state = Self::NUM_LEN_POS_STATES-1;
@@ -319,7 +319,7 @@ impl LZMADistanceDecoder {
 
         let pos_slot = self.pos_slot_dec[len_state].decode(range_dec)?;
         if pos_slot < 4 {
-            return Ok(pos_slot as usize);
+            return Ok(pos_slot.try_into()?);
         }
         let num_direct_bits = (pos_slot >> 1) - 1;
         let mut dist: u32 = ((2 | (pos_slot & 1)) << num_direct_bits).try_into()?;
@@ -329,6 +329,6 @@ impl LZMADistanceDecoder {
             dist += range_dec.decode_direct_bits(num_direct_bits-Self::NUM_ALIGN_BITS).chain_err(|| "Failed to decode distance")? << Self::NUM_ALIGN_BITS;
             dist += self.align_dec.reverse_decode(range_dec)? as u32;
         }
-        Ok(dist.try_into()?)
+        Ok(dist)
     }
 }
