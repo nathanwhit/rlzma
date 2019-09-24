@@ -16,6 +16,9 @@ log = {version = "0.4.8", optional = true}
 env_logger = {version = "0.6.2", optional = true}
 rand = {version = "0.7.2", optional = true}
 
+[dev-dependencies]
+criterion = "0.3.0"
+
 [features]
 default = ["debugging"]
 # Uses a u32 for probabilities during decoding. This improves performance in some cases,
