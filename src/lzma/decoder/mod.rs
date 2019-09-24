@@ -20,7 +20,6 @@ use std::path::Path;
 
 #[cfg(feature = "debugging")]
 pub use log::{info, log, warn, debug};
-use log::Level;
 
 use internal::*;
 
@@ -89,13 +88,6 @@ impl fmt::Display for LZMADecoder {
 }
 
 impl LZMADecoder {
-    // fn decode_to_dict(&mut self, _limit: usize) {
-    //     let _pb_mask = 1 << (self.props.pb - 1);
-    //     let lc = self.props.lc;
-    //     let _lp_mask = (0x100 << self.props.lp) - (0x100 >> lc);
-    //     let _dict = &mut self.dict;
-    //     let _dict_buf_size = self.dict.capacity();
-    // }
     pub fn new(mut input_file: File, output_file: File) -> LZMADecoder {
         let mut raw_props: [Byte; 5] = [0; 5];
         input_file.read_exact(&mut raw_props).expect("Failed to read properties from file");
