@@ -14,7 +14,9 @@ use std::mem;
 use std::u64;
 pub use error_chain::{bail, ChainedError, ensure};
 pub use crate::errors::{Result, Error, ErrorKind, ResultExt};
+pub use std::{fmt, fmt::Display};
 use std::ops::Not;
+use std::path::Path;
 
 #[cfg(feature = "debugging")]
 pub use log::{info, log, warn, debug};
@@ -78,6 +80,12 @@ pub struct LZMADecoder {
     rep_len_dec: LZMALenDecoder,
     dist_dec: LZMADistanceDecoder,
     unpack_size: u64,
+}
+
+impl fmt::Display for LZMADecoder {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "LZMADecoder {{\n\tprops: {:?},\n\tout_window: {},\n\trange_dec: {:?},\n\tlen_dec: {:?},\n\trep_len_dec: {:?},\n\tdist_dec: {:?},\n\tunpack_size: {}\n}}", self.props, self.out_window, self.range_dec, self.len_dec, self.rep_len_dec, self.dist_dec, self.unpack_size)
+    }
 }
 
 impl LZMADecoder {
@@ -393,6 +401,7 @@ impl LZMADecoder {
     }
 }
 
+#[derive(Debug)]
 pub enum LZMADecoderRes {
     FinishedUnmarked,
     FinishedMarked

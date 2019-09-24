@@ -9,6 +9,12 @@ pub(crate) struct LZMAOutWindow {
     pub outstream: LZMAOutputStream,
 }
 
+impl Display for LZMAOutWindow {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "LZMAOutWindow {{\n\tbuf[pos]: {},\n\tpos: {},\n\t size: {},\n\ttotal_pos: {}\n}}", self.buf[self.pos as usize], self.pos, self.size, self.total_pos)
+    }
+}
+
 impl LZMAOutWindow {
     pub fn new(out_file: File, dict_size: u32) -> LZMAOutWindow {
         let size = dict_size;
@@ -187,10 +193,22 @@ impl LZMARangeDecoder {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub(crate) struct LZMABitTreeDecoder {
     num_bits: usize,
     probs: SmallVec<[Cell<LZMAProb>; 256]>
+}
+
+impl Display for LZMABitTreeDecoder {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "LZMABitTreeDecoder {{ num_bits: {} }}", self.num_bits)
+    }
+}
+
+impl Debug for LZMABitTreeDecoder {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        <Self as Display>::fmt(&self, f)
+    }
 }
 
 impl LZMABitTreeDecoder {
@@ -237,6 +255,12 @@ pub(crate) struct LZMALenDecoder {
     high_coder: LZMABitTreeDecoder
 }
 
+impl Display for LZMALenDecoder {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "LZMALenDecoder {{ choice: {}, choice_2: {}, low_coder: {:?}, mid_coder: {:?}, high_coder: {:?} }}", self.choice.get(), self.choice_2.get(), self.low_coder, self.mid_coder, self.high_coder)
+    }
+}
+
 impl LZMALenDecoder {
     pub fn new() -> Self {
         LZMALenDecoder {
@@ -258,11 +282,23 @@ impl LZMALenDecoder {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub(crate) struct LZMADistanceDecoder {
     pos_slot_dec: SmallVec<[LZMABitTreeDecoder; Self::NUM_LEN_POS_STATES]>,
     pos_decs: SmallVec<[Cell<LZMAProb>; 128]>,
     align_dec: LZMABitTreeDecoder, 
+}
+
+impl Display for LZMADistanceDecoder {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "LZMADistanceDecoder {{ \n\tpos_slot_dec: {:?}, align_dec: {}", self.pos_slot_dec, self.align_dec)
+    }
+}
+
+impl Debug for LZMADistanceDecoder {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        <Self as Display>::fmt(&self, f)
+    }
 }
 
 impl LZMADistanceDecoder {
