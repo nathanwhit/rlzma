@@ -20,7 +20,6 @@ use std::path::Path;
 
 #[cfg(feature = "debugging")]
 pub use log::{info, log, warn, debug};
-use log::Level;
 
 use internal::*;
 
