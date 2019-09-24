@@ -6,3 +6,5 @@ cpp_version
 java_version
 *.lzma
 *.txt
+logs
+test_files
