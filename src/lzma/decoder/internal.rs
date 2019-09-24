@@ -1,5 +1,7 @@
 use super::*;
 
+mod tests;
+
 #[derive(Debug)]
 pub(crate) struct LZMAOutWindow {
     buf: Vec<Byte>,
