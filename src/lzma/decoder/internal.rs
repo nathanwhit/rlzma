@@ -18,7 +18,7 @@ impl Display for LZMAOutWindow {
 impl LZMAOutWindow {
     pub fn new(out_file: File, dict_size: u32) -> LZMAOutWindow {
         let size = dict_size;
-        let buf = Vec::with_capacity(dict_size as usize);
+        let buf = vec![0u8; dict_size as usize];
         let pos = 0;
         let total_pos = 0;
         let outstream = LZMAOutputStream::new(out_file);
@@ -35,14 +35,11 @@ impl LZMAOutWindow {
     }
     pub(crate) fn put_byte(&mut self, b: Byte) -> Result<()> {
         self.total_pos += 1;
-        self.buf.push(b);
-        self.pos += 1;
         if self.is_full() {
             self.pos = 0;
-            unsafe {
-                self.buf.set_len(0)
             }
-        }
+        self.buf[self.pos as usize] = b;
+        self.pos += 1;
         self.outstream.write_byte(b)?;
         Ok(())
     }
