@@ -206,7 +206,7 @@ impl LZMARangeDecoder {
 #[derive(Clone)]
 pub(crate) struct LZMABitTreeDecoder {
     num_bits: usize,
-    probs: SmallVec<[Cell<LZMAProb>; 256]>
+    probs: Vec<Cell<LZMAProb>>
 }
 
 impl Display for LZMABitTreeDecoder {
@@ -225,7 +225,7 @@ impl LZMABitTreeDecoder {
     pub fn new(num_bits: usize) -> Self {
         LZMABitTreeDecoder {
             num_bits,
-            probs: smallvec![Cell::new(PROB_INIT_VAL); 1 << num_bits as usize]
+            probs: vec![Cell::new(PROB_INIT_VAL); 1 << num_bits as usize]
         }
     }
 
@@ -260,8 +260,8 @@ pub(crate) const NUM_POS_BITS_MAX: usize = 4;
 pub(crate) struct LZMALenDecoder {
     choice: Cell<LZMAProb>,
     choice_2: Cell<LZMAProb>,
-    low_coder: SmallVec<[LZMABitTreeDecoder; (1 << NUM_POS_BITS_MAX)]>,
-    mid_coder: SmallVec<[LZMABitTreeDecoder; (1 << NUM_POS_BITS_MAX)]>,
+    low_coder: Vec<LZMABitTreeDecoder>,
+    mid_coder: Vec<LZMABitTreeDecoder>,
     high_coder: LZMABitTreeDecoder
 }
 
@@ -276,8 +276,8 @@ impl LZMALenDecoder {
         LZMALenDecoder {
             choice: Cell::new(PROB_INIT_VAL),
             choice_2: Cell::new(PROB_INIT_VAL),
-            low_coder: smallvec![LZMABitTreeDecoder::new(3); 1 << NUM_POS_BITS_MAX],
-            mid_coder: smallvec![LZMABitTreeDecoder::new(3); 1 << NUM_POS_BITS_MAX],
+            low_coder: vec![LZMABitTreeDecoder::new(3); 1 << NUM_POS_BITS_MAX],
+            mid_coder: vec![LZMABitTreeDecoder::new(3); 1 << NUM_POS_BITS_MAX],
             high_coder: LZMABitTreeDecoder::new(8),
         }
     }
@@ -294,8 +294,8 @@ impl LZMALenDecoder {
 
 #[derive(Clone)]
 pub(crate) struct LZMADistanceDecoder {
-    pos_slot_dec: SmallVec<[LZMABitTreeDecoder; Self::NUM_LEN_POS_STATES]>,
-    pos_decs: SmallVec<[Cell<LZMAProb>; 128]>,
+    pos_slot_dec: Vec<LZMABitTreeDecoder>,
+    pos_decs: Vec<Cell<LZMAProb>>,
     align_dec: LZMABitTreeDecoder, 
 }
 
@@ -318,8 +318,8 @@ impl LZMADistanceDecoder {
     pub const NUM_LEN_POS_STATES: usize = 4;
     pub fn new() -> Self {
         LZMADistanceDecoder {
-            pos_slot_dec: smallvec![LZMABitTreeDecoder::new(6); Self::NUM_LEN_POS_STATES],
-            pos_decs: smallvec![Cell::new(PROB_INIT_VAL); 1 + Self::NUM_FULL_DISTS - Self::END_POS_MODEL_IDX],
+            pos_slot_dec: vec![LZMABitTreeDecoder::new(6); Self::NUM_LEN_POS_STATES],
+            pos_decs: vec![Cell::new(PROB_INIT_VAL); 1 + Self::NUM_FULL_DISTS - Self::END_POS_MODEL_IDX],
             align_dec: LZMABitTreeDecoder::new(Self::NUM_ALIGN_BITS),
         }
     }

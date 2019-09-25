@@ -6,7 +6,6 @@ pub use alloc::vec::Vec;
 pub use std::fs::File;
 use std::io;
 pub use std::io::{BufRead, BufReader, BufWriter, Read, Write, Bytes};
-use smallvec::{SmallVec, smallvec};
 pub use std::cell::Cell;
 pub use std::convert::{TryInto};
 use std::fmt::Debug;
@@ -72,7 +71,7 @@ impl LZMAProps {
 #[derive(Debug)]
 pub struct LZMADecoder<T: Write> {
     props: LZMAProps,
-    literal_probs: SmallVec<[Cell<LZMAProb>; 2048]>,
+    literal_probs: Vec<Cell<LZMAProb>>,
     out_window: LZMAOutWindow<T>,
     range_dec: LZMARangeDecoder,
     len_dec: LZMALenDecoder,
@@ -95,7 +94,7 @@ impl<T: Write> LZMADecoder<T> {
         let mut raw_unpack_size: [Byte; 8] = [0; 8];
         input_file.read_exact(&mut raw_unpack_size).expect("Failed to read uncompressed size from file");
         let unpack_size = u64::from_le_bytes(raw_unpack_size);
-        let literal_probs = smallvec![Cell::new(PROB_INIT_VAL); 0x300<<(props.lc + props.lp)];
+        let literal_probs = vec![Cell::new(PROB_INIT_VAL); 0x300<<(props.lc + props.lp)];
         let dict_size = props.dict_size;
         LZMADecoder {
             props,
