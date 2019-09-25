@@ -139,7 +139,7 @@ impl<T: Write> LZMADecoder<T> {
                 let match_bit: usize = (match_byte >> 7) & 1;
                 match_byte <<= 1;
     
-                let bit: usize = self.range_dec.decode_bit(&mut probs[((1 + match_bit) << 8) as usize + symbol])? as usize;
+                let bit: usize = self.range_dec.decode_bit(&probs[((1 + match_bit) << 8) as usize + symbol])? as usize;
                 symbol = (symbol << 1) | bit;
                 if match_bit != bit {
                     break;
@@ -151,7 +151,7 @@ impl<T: Write> LZMADecoder<T> {
         }
 
             while symbol < 0x100 {
-            symbol = (symbol << 1) | self.range_dec.decode_bit(&mut probs[symbol])? as usize;
+            symbol = (symbol << 1) | self.range_dec.decode_bit(&probs[symbol])? as usize;
             }
 
             self.out_window.put_byte((symbol - 0x100) as Byte)?;
