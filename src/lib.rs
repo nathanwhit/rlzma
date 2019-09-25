@@ -1,5 +1,4 @@
 // #![no_std]
-#![allow(dead_code)]
 #![allow(unused_imports)]
 extern crate alloc;
 mod common;
