@@ -326,7 +326,7 @@ impl LZMADistanceDecoder {
         }
         let num_direct_bits = (pos_slot >> 1) - 1;
         let mut dist: u32 = ((2 | (pos_slot & 1)) << num_direct_bits).try_into()?;
-        if pos_slot < Self::END_POS_MODEL_IDX.try_into()? {
+        if pos_slot < Self::END_POS_MODEL_IDX {
             dist += LZMABitTreeDecoder::rev_decode(&self.pos_decs[dist.overflowing_sub(pos_slot as u32).0 as usize..], num_direct_bits as usize, range_dec)? as u32;
         } else {
             dist += range_dec.decode_direct_bits(num_direct_bits-Self::NUM_ALIGN_BITS)? << Self::NUM_ALIGN_BITS;
