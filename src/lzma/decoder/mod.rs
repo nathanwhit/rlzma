@@ -230,7 +230,7 @@ impl<T: Write> LZMADecoder<T> {
                             }
                             ensure!(rep0 < self.props.dict_size, ErrorKind::OverDictSize(rep0, self.props.dict_size));
                             ensure!(self.out_window.check_distance(rep0), format!("Distance was too large: {}\nPosition was: {}", rep0, self.out_window.pos));
-                            self.copy_match_symbols(len.try_into()?, rep0, size_defined)?;
+                            self.copy_match_symbols(len, rep0, size_defined)?;
                         }
                         // Rep match
                         1 => {
@@ -263,7 +263,7 @@ impl<T: Write> LZMADecoder<T> {
 
                                         let len =self.rep_len_dec.decode(&mut self.range_dec, pos_state)?;
                                         state = Self::update_state_rep(state);
-                                        self.copy_match_symbols(len as usize, rep0, size_defined)?;
+                                        self.copy_match_symbols(len, rep0, size_defined)?;
                                     }
                                     other => Self::unexpected_value(other)?
                                 }
@@ -277,7 +277,7 @@ impl<T: Write> LZMADecoder<T> {
                                         mem::swap(&mut rep1, &mut rep0);
                                         let len =self.rep_len_dec.decode(&mut self.range_dec, pos_state)?;
                                         state = Self::update_state_rep(state);
-                                        self.copy_match_symbols(len as usize, rep0, size_defined)?;
+                                        self.copy_match_symbols(len, rep0, size_defined)?;
                                     }
                                     // Keep matching
                                     1 => match self.decode_bit(&is_rep_g2[state])? {
@@ -292,7 +292,7 @@ impl<T: Write> LZMADecoder<T> {
                                             rep0 = dist;
                                             let len =self.rep_len_dec.decode(&mut self.range_dec, pos_state)?;
                                             state = Self::update_state_rep(state);
-                                            self.copy_match_symbols(len as usize, rep0, size_defined)?;
+                                            self.copy_match_symbols(len, rep0, size_defined)?;
                                         }
                                         // Rep match 3
                                         1 => {
@@ -306,7 +306,7 @@ impl<T: Write> LZMADecoder<T> {
                                             rep0 = dist;
                                             let len =self.rep_len_dec.decode(&mut self.range_dec, pos_state)?;
                                             state = Self::update_state_rep(state);
-                                            self.copy_match_symbols(len as usize, rep0, size_defined)?;
+                                            self.copy_match_symbols(len, rep0, size_defined)?;
                                         }
                                         other => Self::unexpected_value(other)?
                                     }
