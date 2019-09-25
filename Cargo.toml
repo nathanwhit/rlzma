@@ -30,6 +30,9 @@ debugging = ["log", "env_logger", "rand"]
 debug = true
 lto = true
 
+[profile.bench]
+lto = true
+
 [[bench]]
 name = "benchmark"
 harness = false
