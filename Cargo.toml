@@ -20,7 +20,6 @@ rand = {version = "0.7.2", optional = true}
 criterion = "0.3.0"
 
 [features]
-default = ["debugging"]
 # Uses a u32 for probabilities during decoding. This improves performance in some cases,
 # at the cost of increased memory usage
 prob_u32 = []
