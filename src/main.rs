@@ -7,7 +7,6 @@ use error_chain::ChainedError;
 use std::process::exit;
 #[cfg(feature = "debugging")]
 use env_logger;
-// use lzma_rs::errors::Result;
 
 fn main() {
     #[cfg(feature = "debugging")]
