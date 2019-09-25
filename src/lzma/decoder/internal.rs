@@ -78,15 +78,18 @@ impl<T: Write> std::ops::Drop for LZMAOutWindow<T> {
 pub(crate) struct LZMAOutputStream<T: Write>(BufWriter<T>);
 
 #[derive(Debug)]
-pub(crate) struct LZMAInputStream(Bytes<BufReader<File>>);
+pub(crate) struct LZMAInputStream(BufReader<File>, [Byte; 1]);
 
 impl LZMAInputStream {
     pub(crate) fn read_byte(&mut self) -> Result<Byte> {
-        self.0.next().ok_or_else(|| ErrorKind::NotEnoughInput(String::from("more data in the input stream")))?.map_err(|e| Error::with_chain(e, "failed to read from input buffer"))
+        self.0.read_exact(&mut self.1)
+            .map_err(|e| Error::with_chain(e, ErrorKind::NotEnoughInput(String::from("more data in the input stream"))))?;
+        Ok(self.1[0])
     }
     pub fn new(input_file: File) -> LZMAInputStream {
         LZMAInputStream(
-            BufReader::new(input_file).bytes(),
+            BufReader::new(input_file),
+            [0; 1]
         )
     }
 }
