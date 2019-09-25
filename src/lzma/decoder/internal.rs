@@ -39,7 +39,7 @@ impl<T: Write> LZMAOutWindow<T> {
         self.total_pos += 1;
         if self.is_full() {
             self.pos = 0;
-            }
+        }
         self.buf[self.pos as usize] = b;
         self.pos += 1;
         self.outstream.write_byte(b)?;
@@ -160,7 +160,7 @@ impl LZMARangeDecoder {
                 self.corrupted = true;
             }
 
-            self.normalize().chain_err(|| "Failed to decode direct bits")?;
+            self.normalize()?;
             res <<= 1;
             res = res.overflowing_add(t.overflowing_add(1).0).0;
             if num_bits <= 1 {
@@ -187,7 +187,7 @@ impl LZMARangeDecoder {
                 1
             };
         prob.set(val);
-        self.normalize().chain_err(|| "Range decoder failed to decode bit")?;
+        self.normalize()?;
         Ok(symbol)
     }
 }
@@ -221,7 +221,7 @@ impl LZMABitTreeDecoder {
     pub fn decode(&mut self, range_dec: &mut LZMARangeDecoder) -> Result<usize> {
         let mut m: u32 = 1;
         for _ in 0..self.num_bits {
-            m = (m << 1) + range_dec.decode_bit(&mut self.probs[m as usize]).chain_err(|| "Bit tree decoding failed")?;
+            m = (m << 1) + range_dec.decode_bit(&mut self.probs[m as usize])?;
         }
         Ok((m - (1 << self.num_bits)).try_into()?)
     }
@@ -272,7 +272,7 @@ impl LZMALenDecoder {
     }
     pub fn decode(&mut self, range_dec: &mut LZMARangeDecoder, pos_state: usize) -> Result<usize> {
         Ok(if range_dec.decode_bit(&mut self.choice)? == 0 {
-            self.low_coder[pos_state].decode(range_dec).chain_err(|| format!("Len decoding failed at position state: {}", pos_state))?
+            self.low_coder[pos_state].decode(range_dec)?
         } else if range_dec.decode_bit(&mut self.choice_2)? == 0 {
             8 + self.mid_coder[pos_state].decode(range_dec)?
         } else {
@@ -328,7 +328,7 @@ impl LZMADistanceDecoder {
         if pos_slot < Self::END_POS_MODEL_IDX.try_into()? {
             dist += LZMABitTreeDecoder::rev_decode(&mut self.pos_decs[dist.overflowing_sub(pos_slot as u32).0 as usize..], num_direct_bits as usize, range_dec)? as u32;
         } else {
-            dist += range_dec.decode_direct_bits(num_direct_bits-Self::NUM_ALIGN_BITS).chain_err(|| "Failed to decode distance")? << Self::NUM_ALIGN_BITS;
+            dist += range_dec.decode_direct_bits(num_direct_bits-Self::NUM_ALIGN_BITS)? << Self::NUM_ALIGN_BITS;
             dist += self.align_dec.reverse_decode(range_dec)? as u32;
         }
         Ok(dist)

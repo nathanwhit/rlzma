@@ -154,7 +154,7 @@ impl<T: Write> LZMADecoder<T> {
             symbol = (symbol << 1) | self.range_dec.decode_bit(&mut probs[symbol])? as usize;
             }
 
-            self.out_window.put_byte((symbol - 0x100) as Byte).chain_err(|| "Decode of literal data failed!")?;
+            self.out_window.put_byte((symbol - 0x100) as Byte)?;
 
             #[cfg(feature = "debugging")]
             debug!("literal was : {}", symbol-0x100);
