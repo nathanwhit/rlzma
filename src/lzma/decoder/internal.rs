@@ -51,8 +51,7 @@ impl<T: Write> LZMAOutWindow<T> {
         } else {
             self.size - dist + self.pos
         };
-        self.buf.get(idx as usize)
-            .ok_or_else(|| format!("The index {} was larger than the output buffer's size: {}", idx, self.size).into())
+        Ok(unsafe { self.buf.get_unchecked(idx as usize) })
     }
     pub(crate) fn copy_match(&mut self, dist: u32, len: usize) -> Result<()>{
         for _ in 0..len {
