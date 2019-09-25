@@ -54,10 +54,18 @@ impl<T: Write> LZMAOutWindow<T> {
         Ok(unsafe { self.buf.get_unchecked(idx as usize) })
     }
     pub(crate) fn copy_match(&mut self, dist: u32, len: usize) -> Result<()>{
-        for _ in 0..len {
-            self.put_byte(*self.get_byte(dist)?)?
+        if dist==1 {
+            let b = *self.get_byte(dist)?;
+            for _ in 0..len {
+                self.put_byte(b)?;
+            }
+            Ok(())
+        } else {
+            for _ in 0..len {
+                self.put_byte(*self.get_byte(dist)?)?
+            }
+            Ok(())
         }
-        Ok(())
     }
     pub(crate) fn check_distance(&self, dist: u32) -> bool {
         dist <= self.total_pos as u32 || self.is_full()
