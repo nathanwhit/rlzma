@@ -55,9 +55,10 @@ impl LZMAProps {
         let pb = d/5;
         let lp = d%5;
         let mut dict_size_in_props: u32 = 0;
-        for i in 0..4 {
-            dict_size_in_props |= u32::from(properties[i+1]) << (8*i);
-        }
+        dict_size_in_props |= u32::from(properties[1]);
+        dict_size_in_props |= u32::from(properties[2]) << (8);
+        dict_size_in_props |= u32::from(properties[3]) << (16);
+        dict_size_in_props |= u32::from(properties[4]) << (24);
         let dict_size = u32::max(dict_size_in_props, Self::DICT_MIN);
         LZMAProps {
             lc,

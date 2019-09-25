@@ -56,14 +56,10 @@ impl<T: Write> LZMAOutWindow<T> {
     pub(crate) fn copy_match(&mut self, dist: u32, len: usize) -> Result<()>{
         if dist==1 {
             let b = *self.get_byte(dist)?;
-            for _ in 0..len {
-                self.put_byte(b)?;
-            }
+            (0..len).for_each(|_| { self.put_byte(b).unwrap(); });
             Ok(())
         } else {
-            for _ in 0..len {
-                self.put_byte(*self.get_byte(dist)?)?
-            }
+            (0..len).for_each(|_| { self.put_byte(*self.get_byte(dist).unwrap()).unwrap() });
             Ok(())
         }
     }
@@ -128,9 +124,10 @@ impl LZMARangeDecoder {
     pub fn init(&mut self) -> Result<()> {
         let b = self.instream.read_byte()?;
 
-        for _ in 0..4 {
-            self.code = (self.code << 8) | u32::from(self.instream.read_byte()?);
-        }
+        self.code = (self.code << 8) | u32::from(self.instream.read_byte()?);
+        self.code = (self.code << 8) | u32::from(self.instream.read_byte()?);
+        self.code = (self.code << 8) | u32::from(self.instream.read_byte()?);
+        self.code = (self.code << 8) | u32::from(self.instream.read_byte()?);
         if b != 0 || self.code == self.range {
             self.corrupted = true;
         }
