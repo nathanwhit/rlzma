@@ -1,6 +1,6 @@
-extern crate lzma_rs;
+extern crate rustlzma;
 
-use lzma_rs::lzma::decoder::{LZMADecoder};
+use rustlzma::lzma::decoder::{LZMADecoder};
 use std::fs::{File};
 use std::path::{Path, PathBuf};
 use error_chain::ChainedError;
