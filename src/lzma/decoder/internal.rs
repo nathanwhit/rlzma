@@ -39,10 +39,10 @@ impl<T: Write> LZMAOutWindow<T> {
         self.total_pos += 1;
         if self.is_full() {
             self.pos = 0;
+            self.outstream.0.write_all(&self.buf)?;
         }
         self.buf[self.pos as usize] = b;
         self.pos += 1;
-        self.outstream.write_byte(b)?;
         Ok(())
     }
     pub(crate) fn get_byte(&self, dist: u32) -> Result<&Byte> {
@@ -68,6 +68,12 @@ impl<T: Write> LZMAOutWindow<T> {
     }
 }
 
+impl<T: Write> std::ops::Drop for LZMAOutWindow<T> {
+    fn drop(&mut self) {
+        self.outstream.0.write_all(&self.buf).expect("Failed to write buffer on drop");
+    }
+}
+
 #[derive(Debug)]
 pub(crate) struct LZMAOutputStream<T: Write>(BufWriter<T>);
 
@@ -86,11 +92,6 @@ impl LZMAInputStream {
 }
 
 impl<T: Write> LZMAOutputStream<T> {
-    pub fn write_byte(&mut self, b: Byte) -> Result<()>{
-        let len_written = self.0.write(&[b])?;
-        ensure!(len_written==1, ErrorKind::WriteFailed);
-        Ok(())
-    }
     pub fn new(out: T) -> LZMAOutputStream<T> {
         LZMAOutputStream(BufWriter::new(out))
     }
