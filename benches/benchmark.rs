@@ -1,4 +1,4 @@
-use criterion::{Bencher, criterion_main, criterion_group, Criterion};
+use criterion::{criterion_main, criterion_group, Criterion};
 
 extern crate rustlzma;
 use rustlzma::lzma::decoder::LZMADecoder;
