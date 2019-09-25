@@ -38,7 +38,7 @@ fn main() {
     let out_file = File::create(&out_pathbuf).expect("Failed to create output file");
     let in_file = File::open(in_path).expect("Failed to open input file");
 
-    match LZMADecoder::<File>::decode_file(in_file, out_file) {
+    match LZMADecoder::decode(in_file, out_file) {
         Ok(..) => (),
         Err(e) => {
             eprintln!("An error occurred: {}", e.display_chain())

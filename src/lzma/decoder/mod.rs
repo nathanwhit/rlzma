@@ -109,9 +109,9 @@ impl<T: Write> LZMADecoder<T> {
         }
     }
     
-    pub fn decode_file(input_file: File, output_file: File) -> Result<()> {
-        let mut decoder = LZMADecoder::new(input_file, output_file);
-        decoder.decode().map_err(|e| {
+    pub fn decode(input_file: File, output: T) -> Result<()> {
+        let mut decoder = LZMADecoder::new(input_file, output);
+        decoder._decode().map_err(|e| {
             eprintln!("{}", e.display_chain().to_string());
             #[cfg(feature = "debugging")]
             eprintln!("Wrote state at error time to : {}", decoder.dump_state().unwrap());
@@ -164,7 +164,7 @@ impl<T: Write> LZMADecoder<T> {
 
     const NUM_STATES: usize = 12;
 
-    pub fn decode(&mut self) -> Result<LZMADecoderRes> {
+    fn _decode(&mut self) -> Result<LZMADecoderRes> {
         self.range_dec.init()?;
 
         let (need_marker, size_defined) = if self.unpack_size == u64::MAX {
