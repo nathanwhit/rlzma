@@ -159,10 +159,7 @@ impl LZMARangeDecoder {
             self.range >>= 1;
             self.code = self.code.overflowing_sub(self.range).0;
             let t = 0u32.overflowing_sub(self.code >> 31).0;
-            // self.code = self.code.overflowing_add(self.range & t).0;
             self.code = self.code.overflowing_add(self.range & t).0;
-
-            // info!("Code: {}", self.code);
 
             if self.code == self.range {
                 self.corrupted = true;

@@ -182,7 +182,8 @@ impl<T: Write> LZMADecoder<T> {
         let is_rep0_long = vec![Cell::new(PROB_INIT_VAL); Self::NUM_STATES << NUM_POS_BITS_MAX];
 
         let (mut rep0, mut rep1, mut rep2, mut rep3) = (0, 0, 0, 0);
-
+        let pos_state_mask = (1 << self.props.pb) - 1;
+        let dict_size = self.props.dict_size;
         let mut state = 0;
 
         loop {
@@ -190,7 +191,7 @@ impl<T: Write> LZMADecoder<T> {
             && !need_marker && self.range_dec.is_finished() {
                 return Ok(LZMADecoderRes::FinishedUnmarked);
             }
-            let pos_state = self.out_window.total_pos & ((1 << self.props.pb) - 1);
+            let pos_state = self.out_window.total_pos & pos_state_mask;
             let state2 = (state << NUM_POS_BITS_MAX) + pos_state;
             match self.decode_bit(&is_match[state2])? {
                 // Literal
@@ -229,7 +230,7 @@ impl<T: Write> LZMADecoder<T> {
                             if size_defined && self.unpack_size == 0 {
                                 bail!(ErrorKind::NotEnoughInput(String::from("Expected simple match encoded data")));
                             }
-                            ensure!(rep0 < self.props.dict_size, ErrorKind::OverDictSize(rep0, self.props.dict_size));
+                            ensure!(rep0 < dict_size, ErrorKind::OverDictSize(rep0, dict_size));
                             ensure!(self.out_window.check_distance(rep0), format!("Distance was too large: {}\nPosition was: {}", rep0, self.out_window.pos));
                             self.copy_match_symbols(len, rep0, size_defined)?;
                         }
