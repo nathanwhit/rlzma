@@ -34,3 +34,11 @@ lto = true
 [[bench]]
 name = "benchmark"
 harness = false
+
+[lib]
+bench = false
+
+[[bin]]
+name = "rustlzma"
+path = "src/main.rs"
+bench = false
