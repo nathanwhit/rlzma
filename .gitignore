@@ -8,3 +8,6 @@ java_version
 *.txt
 logs
 test_files
+*.svg
+*.dec
+enwik*
