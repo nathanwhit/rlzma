@@ -197,7 +197,6 @@ impl<T: Write> LZMADecoder<T> {
                 // Literal
                 0 => {
                     if size_defined && self.unpack_size == 0 {
-                        // return Err(Error::;
                         bail!(ErrorKind::NotEnoughInput(String::from("literal data")));
                     }
                     self.decode_literal(state, rep0)?;
