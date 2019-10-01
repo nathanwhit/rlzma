@@ -17,17 +17,19 @@ pub fn benchmark_pi() {
     LZMADecoder::decode(in_file, out_file).expect("Moo");
 }
 
-pub fn run_benchmark(c: &mut Criterion) {
+pub fn bench_enwik8(c: &mut Criterion) {
     c.bench_function("enwik8 decoding", |b| b.iter(|| benchmark_enwik8()));
     std::fs::remove_file("temp_enwik8").unwrap();
+}
+
+pub fn bench_pi(c: &mut Criterion) {
     c.bench_function("pi decoding", |b| b.iter(|| benchmark_pi()));
     std::fs::remove_file("temp_pi").unwrap();
-
 }
 
 criterion_group!{
     name = benches;
     config = Criterion::default().sample_size(10);
-    targets = run_benchmark
+    targets = bench_enwik8, bench_pi
 }
 criterion_main!(benches);
