@@ -35,31 +35,31 @@ impl<T: Write> LZMAOutWindow<T> {
     fn is_full(&self) -> bool {
         self.pos == self.size
     }
-    pub(crate) fn put_byte(&mut self, b: Byte) -> Result<()> {
+    pub(crate) fn put_byte(&mut self, b: Byte) {
         self.total_pos += 1;
         if self.is_full() {
             self.pos = 0;
-            self.outstream.0.write_all(&self.buf)?;
+            self.outstream.0.write_all(&self.buf).unwrap();
         }
         self.buf[self.pos] = b;
         self.pos += 1;
-        Ok(())
     }
-    pub(crate) fn get_byte(&self, dist: u32) -> Result<Byte> {
+    pub(crate) fn get_byte(&self, dist: u32) -> Byte {
         let idx = if dist as usize <= self.pos {
             self.pos - dist as usize
         } else {
             self.size - dist as usize + self.pos
         };
-        self.buf.get(idx).ok_or_else(|| String::from("Index was beyond the buffer").into()).map(|b| *b)
+        // self.buf.get(idx).ok_or_else(|| String::from("Index was beyond the buffer").into()).map(|b| *b)
+        *self.buf.get(idx).unwrap()
     }
     pub(crate) fn copy_match(&mut self, dist: u32, len: usize) -> Result<()>{
         if dist==1 {
-            let b = self.get_byte(dist)?;
-            (0..len).for_each(|_| { self.put_byte(b).unwrap(); });
+            let b = self.get_byte(dist);
+            (0..len).for_each(|_| { self.put_byte(b); });
             Ok(())
         } else {
-            (0..len).for_each(|_| { self.put_byte(self.get_byte(dist).unwrap()).unwrap() });
+            (0..len).for_each(|_| { self.put_byte(self.get_byte(dist)) });
             Ok(())
         }
     }
