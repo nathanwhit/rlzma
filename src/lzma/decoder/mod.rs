@@ -69,6 +69,11 @@ impl LZMAProps {
     }
 }
 
+pub(crate) enum BitMatch {
+    Zero,
+    One
+}
+
 #[derive(Debug)]
 pub struct LZMADecoder<T: Write> {
     props: LZMAProps,
@@ -195,7 +200,7 @@ impl<T: Write> LZMADecoder<T> {
             let state2 = (state << NUM_POS_BITS_MAX) + pos_state;
             match self.decode_bit(&is_match[state2])? {
                 // Literal
-                0 => {
+                BitMatch::Zero => {
                     if size_defined && self.unpack_size == 0 {
                         bail!(ErrorKind::NotEnoughInput(String::from("literal data")));
                     }
@@ -203,13 +208,13 @@ impl<T: Write> LZMADecoder<T> {
                     state = Self::update_state_literal(state);
                     self.unpack_size-=1;
                 }
-                1 => { 
+                BitMatch::One => { 
                     if size_defined && self.unpack_size == 0 {
                         bail!(ErrorKind::NotEnoughInput(String::from("match encoded data")));
                     }
                     match self.decode_bit(&is_rep[state])? {
                         // Simple match
-                        0 => {
+                        BitMatch::Zero => {
                             #[cfg(feature = "debugging")]
                             debug!("decoding simple match");
 
@@ -234,7 +239,7 @@ impl<T: Write> LZMADecoder<T> {
                             self.copy_match_symbols(len, rep0, size_defined)?;
                         }
                         // Rep match
-                        1 => {
+                        BitMatch::One => {
                                 #[cfg(feature = "debugging")]
                                 debug!("decoding rep match");
 
@@ -246,19 +251,19 @@ impl<T: Write> LZMADecoder<T> {
                                 }
                                 match self.decode_bit(&is_rep_g0[state])? {
                                 // Rep match distance = rep0
-                                0 => match self.decode_bit(&is_rep0_long[state2])? {
+                                BitMatch::Zero => match self.decode_bit(&is_rep0_long[state2])? {
                                     // Short rep match
-                                    0 => {
+                                    BitMatch::Zero => {
                                         #[cfg(feature = "debugging")]
                                         debug!("decoding short rep match");
 
                                         state = Self::update_state_shortrep(state);
-                                        self.out_window.put_byte(*self.out_window.get_byte(rep0 + 1)?)?;
+                                        self.out_window.put_byte(self.out_window.get_byte(rep0 + 1)?)?;
                                         self.unpack_size -= 1;
                                         continue;
                                     }
                                     // Rep match 0
-                                    1 => {
+                                    BitMatch::One => {
                                         #[cfg(feature = "debugging")]
                                         debug!("decoding rep match 0");
 
@@ -266,12 +271,11 @@ impl<T: Write> LZMADecoder<T> {
                                         state = Self::update_state_rep(state);
                                         self.copy_match_symbols(len, rep0, size_defined)?;
                                     }
-                                    other => Self::unexpected_value(other)?
                                 }
                                 // Keep matching
-                                1 => match self.decode_bit(&is_rep_g1[state])? {
+                                BitMatch::One => match self.decode_bit(&is_rep_g1[state])? {
                                     // Rep match 1
-                                    0 => {
+                                    BitMatch::Zero => {
                                         #[cfg(feature = "debugging")]
                                         debug!("decoding rep match 1");
 
@@ -281,9 +285,9 @@ impl<T: Write> LZMADecoder<T> {
                                         self.copy_match_symbols(len, rep0, size_defined)?;
                                     }
                                     // Keep matching
-                                    1 => match self.decode_bit(&is_rep_g2[state])? {
+                                    BitMatch::One => match self.decode_bit(&is_rep_g2[state])? {
                                         // Rep match 2
-                                        0 => {
+                                        BitMatch::Zero => {
                                             #[cfg(feature = "debugging")]
                                             debug!("decoding rep match 2");
 
@@ -296,7 +300,7 @@ impl<T: Write> LZMADecoder<T> {
                                             self.copy_match_symbols(len, rep0, size_defined)?;
                                         }
                                         // Rep match 3
-                                        1 => {
+                                        BitMatch::One => {
                                             #[cfg(feature = "debugging")]
                                             debug!("decoding rep match 3");
 
@@ -309,27 +313,22 @@ impl<T: Write> LZMADecoder<T> {
                                             state = Self::update_state_rep(state);
                                             self.copy_match_symbols(len, rep0, size_defined)?;
                                         }
-                                        other => Self::unexpected_value(other)?
                                     }
-                                    other => Self::unexpected_value(other)?
                                 }
-                                other => Self::unexpected_value(other)?
                             }
                         }
-                        other => Self::unexpected_value(other)?
                     }
                 }
-                other => Self::unexpected_value(other)?
             }
         }
     }
 
-    fn decode_bit(&mut self, prob: &Cell<LZMAProb>) -> Result<u8> {
+    fn decode_bit(&mut self, prob: &Cell<LZMAProb>) -> Result<BitMatch> {
         let decoded = self.range_dec.decode_bit(prob)?;
         Ok(if decoded == 1 {
-            1
+            BitMatch::One
         } else if decoded == 0 {
-            0
+            BitMatch::Zero
         } else {
             bail!("Range-Decoded bit was an unexpected result (not 0/1)")
         })
@@ -344,11 +343,7 @@ impl<T: Write> LZMADecoder<T> {
         self.unpack_size -= len as u64;
         Ok(())
     }
-
-    fn unexpected_value<V: Debug>(val: V) -> Result<()> {
-        bail!(format!("Unexpected value found: {:?}", val))
-    }
-
+    
     fn update_state_literal(state: usize) -> usize {
         if state < 4 {
             0
