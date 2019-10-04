@@ -35,8 +35,8 @@ pub(crate) const NUM_MOVE_BITS: LZMAProb = 5;
 pub(crate) const PROB_INIT_VAL: LZMAProb = ((1 << NUM_BIT_MODEL_TOTAL_BITS) / 2);
 
 
-#[derive(Clone, Debug)]
-struct LZMAProps {
+#[derive(Clone, Debug, Copy)]
+pub(crate) struct LZMAProps {
     lc: Byte,
     lp: Byte,
     pb: Byte,
@@ -69,6 +69,31 @@ impl LZMAProps {
     }
 }
 
+#[derive(Debug)]
+pub(crate) struct LZMACacher {
+    props: LZMAProps,
+    tot_pos_mask: usize,
+    prev_byte_shift: usize
+}
+
+impl LZMACacher {
+    pub(crate) fn new(props: LZMAProps) -> Self {
+        let prev_byte_shift = 8 - props.lc as usize;
+        let tot_pos_mask = (1 << props.lp) - 1;
+        LZMACacher {
+            props,
+            tot_pos_mask,
+            prev_byte_shift
+        }
+    }
+    pub(crate) fn tot_pos_mask(&self) -> usize {
+        self.tot_pos_mask
+    }
+    pub(crate) fn prev_byte_shift(&self) -> usize {
+        self.prev_byte_shift
+    }
+}
+
 pub(crate) enum BitMatch {
     Zero,
     One
@@ -84,6 +109,7 @@ pub struct LZMADecoder<T: Write> {
     rep_len_dec: LZMALenDecoder,
     dist_dec: LZMADistanceDecoder,
     unpack_size: u64,
+    cacher: LZMACacher,
 }
 
 impl<T: Write> fmt::Display for LZMADecoder<T> {
@@ -110,8 +136,17 @@ impl<T: Write> LZMADecoder<T> {
             len_dec: LZMALenDecoder::new(),
             rep_len_dec: LZMALenDecoder::new(),
             dist_dec: LZMADistanceDecoder::new(),
-            unpack_size
+            unpack_size,
+            cacher: LZMACacher::new(props),
         }
+    }
+
+    fn tot_pos_mask(&self) -> usize {
+        self.cacher.tot_pos_mask()
+    }
+
+    fn prev_byte_shift(&self) -> usize {
+        self.cacher.prev_byte_shift()
     }
     
     pub fn decode(input_file: File, output: T) -> Result<()> {
@@ -135,7 +170,7 @@ impl<T: Write> LZMADecoder<T> {
             0
         };
         let mut symbol = 1;
-        let lit_state = ((self.out_window.total_pos & ((1 << self.props.lp) - 1)) << self.props.lc) + (prev_byte >> (8 - self.props.lc)) as usize;
+        let lit_state = ((self.out_window.total_pos & self.tot_pos_mask()) << self.props.lc) + (prev_byte >> self.prev_byte_shift()) as usize;
 
         let probs = &mut self.literal_probs[0x300 * lit_state..];
         if state >= 7 {
