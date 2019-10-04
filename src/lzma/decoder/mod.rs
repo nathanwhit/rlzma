@@ -125,7 +125,7 @@ impl<T: Write> LZMADecoder<T> {
         debug!("decoding literal");
 
         let prev_byte = if self.out_window.is_empty().not() {
-            *self.out_window.get_byte(1)?
+            self.out_window.get_byte(1)?
         } else {
             0
         };
@@ -134,7 +134,7 @@ impl<T: Write> LZMADecoder<T> {
 
         let probs = &mut self.literal_probs[0x300 * lit_state..];
         if state >= 7 {
-            let mut match_byte: usize = usize::from(*self.out_window.get_byte(rep0 + 1)?);
+            let mut match_byte: usize = usize::from(self.out_window.get_byte(rep0 + 1)?);
             loop {
                 let match_bit: usize = (match_byte >> 7) & 1;
                 match_byte <<= 1;
