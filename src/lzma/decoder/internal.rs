@@ -5,8 +5,8 @@ mod tests;
 #[derive(Debug)]
 pub(crate) struct LZMAOutWindow<T: Write> {
     buf: Vec<Byte>,
-    pub(super) pos: u32,
-    size: u32,
+    pub(super) pos: usize,
+    size: usize,
     pub total_pos: usize,
     pub outstream: LZMAOutputStream<T>,
 }
@@ -19,7 +19,7 @@ impl<T: Write> Display for LZMAOutWindow<T> {
 
 impl<T: Write> LZMAOutWindow<T> {
     pub fn new(out_file: T, dict_size: u32) -> LZMAOutWindow<T> {
-        let size = dict_size;
+        let size = dict_size as usize;
         let buf = vec![0u8; dict_size as usize];
         let pos = 0;
         let total_pos = 0;
@@ -41,7 +41,7 @@ impl<T: Write> LZMAOutWindow<T> {
             self.pos = 0;
             self.outstream.0.write_all(&self.buf)?;
         }
-        self.buf[self.pos as usize] = b;
+        self.buf[self.pos] = b;
         self.pos += 1;
         Ok(())
     }
@@ -123,7 +123,6 @@ impl LZMARangeDecoder {
 
     pub fn init(&mut self) -> Result<()> {
         let b = self.instream.read_byte()?;
-
         self.code = (self.code << 8) | u32::from(self.instream.read_byte()?);
         self.code = (self.code << 8) | u32::from(self.instream.read_byte()?);
         self.code = (self.code << 8) | u32::from(self.instream.read_byte()?);
@@ -177,12 +176,14 @@ impl LZMARangeDecoder {
         Ok(res)
     }
 
+    const MAXVAL: LZMAProb = 1 << NUM_BIT_MODEL_TOTAL_BITS;
+
     pub fn decode_bit(&mut self, prob: &Cell<LZMAProb>) -> Result<u32> {
         let mut val = prob.get();
         let bound = (self.range >> NUM_BIT_MODEL_TOTAL_BITS) * u32::from(val);
         let symbol =
             if self.code < bound {
-                val += ((1 << NUM_BIT_MODEL_TOTAL_BITS) - val) >> NUM_MOVE_BITS;
+                val += (Self::MAXVAL - val) >> NUM_MOVE_BITS;
                 self.range = bound;
                 0
             } else {
