@@ -344,6 +344,7 @@ impl<T: Write> LZMADecoder<T> {
         Ok(())
     }
     
+    #[inline]
     fn update_state_literal(state: usize) -> usize {
         if state < 4 {
             0
@@ -354,6 +355,7 @@ impl<T: Write> LZMADecoder<T> {
         }
     }
 
+    #[inline]
     fn update_state_match(state: usize) -> usize {
         if state < 7 {
             7
@@ -361,6 +363,7 @@ impl<T: Write> LZMADecoder<T> {
             10
         }
     }
+    #[inline]
     fn update_state_rep(state: usize) -> usize {
         if state < 7 {
             8
@@ -368,6 +371,7 @@ impl<T: Write> LZMADecoder<T> {
             11
         }
     }
+    #[inline]
     fn update_state_shortrep(state: usize) -> usize {
         if state < 7 {
             9
