@@ -11,3 +11,4 @@ test_files
 *.svg
 *.dec
 enwik*
+temp*
