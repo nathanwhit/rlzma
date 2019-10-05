@@ -9,6 +9,7 @@ exclude = ["c_version/**/*", "cpp_version/**/*"]
 
 [dependencies]
 error-chain = "0.12.1"
+buf_redux = "0.8.4"
 
 log = {version = "0.4.8", optional = true}
 env_logger = {version = "0.6.2", optional = true}
