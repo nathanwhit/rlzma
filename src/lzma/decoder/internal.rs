@@ -86,10 +86,11 @@ pub(crate) struct LZMAInputStream(BufReader<File, MinBuffered>);
 
 impl LZMAInputStream {
     pub(crate) fn read_byte(&mut self) -> Byte {
-        if self.0.buffer().is_empty() {
-            self.0.fill_buf().unwrap();
-        }
-        let b = self.0.buffer()[0];
+        let b = if self.0.buf_len()==0 {
+            self.0.fill_buf().unwrap()[0]
+        } else {
+            self.0.buffer()[0]
+        };
         self.0.consume(1);
         b
     }
