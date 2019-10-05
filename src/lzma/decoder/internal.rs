@@ -1,4 +1,5 @@
 use super::*;
+use buf_redux::policy::MinBuffered;
 
 mod tests;
 
@@ -81,18 +82,20 @@ impl<T: Write> std::ops::Drop for LZMAOutWindow<T> {
 pub(crate) struct LZMAOutputStream<T: Write>(BufWriter<T>);
 
 #[derive(Debug)]
-pub(crate) struct LZMAInputStream(BufReader<File>, [Byte; 1]);
+pub(crate) struct LZMAInputStream(BufReader<File, MinBuffered>);
 
 impl LZMAInputStream {
-    pub(crate) fn read_byte(&mut self) -> Result<Byte> {
-        self.0.read_exact(&mut self.1)
-            .map_err(|e| Error::with_chain(e, ErrorKind::NotEnoughInput(String::from("more data in the input stream"))))?;
-        Ok(self.1[0])
+    pub(crate) fn read_byte(&mut self) -> Byte {
+        if self.0.buffer().is_empty() {
+            self.0.fill_buf().unwrap();
+        }
+        let b = self.0.buffer()[0];
+        self.0.consume(1);
+        b
     }
     pub fn new(input_file: File) -> LZMAInputStream {
         LZMAInputStream(
-            BufReader::new(input_file),
-            [0; 1]
+            BufReader::new(input_file).set_policy(MinBuffered(4))
         )
     }
 }
@@ -122,11 +125,11 @@ impl LZMARangeDecoder {
     }
 
     pub fn init(&mut self) -> Result<()> {
-        let b = self.instream.read_byte()?;
-        self.code = (self.code << 8) | u32::from(self.instream.read_byte()?);
-        self.code = (self.code << 8) | u32::from(self.instream.read_byte()?);
-        self.code = (self.code << 8) | u32::from(self.instream.read_byte()?);
-        self.code = (self.code << 8) | u32::from(self.instream.read_byte()?);
+        let b = self.instream.read_byte();
+        self.code = (self.code << 8) | u32::from(self.instream.read_byte());
+        self.code = (self.code << 8) | u32::from(self.instream.read_byte());
+        self.code = (self.code << 8) | u32::from(self.instream.read_byte());
+        self.code = (self.code << 8) | u32::from(self.instream.read_byte());
         if b != 0 || self.code == self.range {
             self.corrupted = true;
         }
@@ -146,7 +149,7 @@ impl LZMARangeDecoder {
     fn normalize(&mut self) -> Result<()>{
         if self.range < Self::TOP_VALUE {
             self.range <<= 8;
-            self.code = (self.code << 8) | u32::from(self.instream.read_byte()?)
+            self.code = (self.code << 8) | u32::from(self.instream.read_byte())
         }
         Ok(())
     }
