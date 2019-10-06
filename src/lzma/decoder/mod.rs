@@ -196,10 +196,10 @@ pub(crate) enum BitMatch {
 }
 
 #[derive(Debug)]
-pub struct LZMADecoder<R: Read, T: Write> {
+pub struct LZMADecoder<R: Read, W: Write> {
     props: LZMAProps,
     literal_probs: Vec<Cell<LZMAProb>>,
-    out_window: LZMAOutWindow<T>,
+    out_window: LZMAOutWindow<W>,
     range_dec: LZMARangeDecoder<R>,
     len_dec: LZMALenDecoder,
     rep_len_dec: LZMALenDecoder,
@@ -208,14 +208,14 @@ pub struct LZMADecoder<R: Read, T: Write> {
     cacher: LZMACacher,
 }
 
-impl<R: Read, T: Write> fmt::Display for LZMADecoder<R, T> {
+impl<R: Read, W: Write> fmt::Display for LZMADecoder<R, W> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "LZMADecoder {{\n\tprops: {:?},\n\tout_window: {},\n\trange_dec: {:?},\n\tlen_dec: {:?},\n\trep_len_dec: {:?},\n\tdist_dec: {:?},\n\tunpack_size: {}\n}}", self.props, self.out_window, self.range_dec, self.len_dec, self.rep_len_dec, self.dist_dec, self.unpack_size)
     }
 }
 
-impl<R: Read, T: Write> LZMADecoder<R, T> {
-    pub fn new(mut input: R, output: T) -> LZMADecoder<R, T> {
+impl<R: Read, W: Write> LZMADecoder<R, W> {
+    pub fn new(mut input: R, output: W) -> LZMADecoder<R, W> {
         let mut raw_props: [Byte; 5] = [0; 5];
         input.read_exact(&mut raw_props).expect("Failed to read properties from input source");
         let props = LZMAProps::decode_properties(&raw_props);
@@ -245,7 +245,7 @@ impl<R: Read, T: Write> LZMADecoder<R, T> {
         self.cacher.prev_byte_shift()
     }
     
-    pub fn decode(input: R, output: T) -> Result<()> {
+    pub fn decode(input: R, output: W) -> Result<()> {
         let mut decoder = LZMADecoder::new(input, output);
         decoder._decode().map_err(|e| {
             eprintln!("{}", e.display_chain().to_string());
