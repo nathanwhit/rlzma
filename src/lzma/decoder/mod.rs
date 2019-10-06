@@ -1,10 +1,8 @@
 pub mod constants;
 pub(crate) mod internal;
 
-use alloc::boxed::Box;
-pub use alloc::vec::Vec;
+pub use std::vec::Vec;
 pub use std::fs::File;
-use std::io;
 pub use std::io::{BufRead, BufWriter, Read, Write, Bytes};
 pub use buf_redux::BufReader;
 pub use std::cell::Cell;
@@ -16,7 +14,6 @@ pub use error_chain::{bail, ChainedError, ensure};
 pub use crate::errors::{Result, Error, ErrorKind, ResultExt};
 pub use std::{fmt, fmt::Display};
 use std::ops::Not;
-use std::path::Path;
 
 #[cfg(feature = "debugging")]
 pub use log::{info, log, warn, debug};
