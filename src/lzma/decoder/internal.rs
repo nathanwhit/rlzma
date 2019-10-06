@@ -54,15 +54,8 @@ impl<T: Write> LZMAOutWindow<T> {
         // self.buf.get(idx).ok_or_else(|| String::from("Index was beyond the buffer").into()).map(|b| *b)
         *self.buf.get(idx).unwrap()
     }
-    pub(crate) fn copy_match(&mut self, dist: u32, len: usize) -> Result<()>{
-        if dist==1 {
-            let b = self.get_byte(dist);
-            (0..len).for_each(|_| { self.put_byte(b); });
-            Ok(())
-        } else {
-            (0..len).for_each(|_| { self.put_byte(self.get_byte(dist)) });
-            Ok(())
-        }
+    pub(crate) fn copy_match(&mut self, dist: u32, len: usize){
+        (0..len).for_each(|_| { self.put_byte(self.get_byte(dist)) });
     }
     pub(crate) fn check_distance(&self, dist: u32) -> bool {
         dist <= self.total_pos as u32 || self.is_full()
