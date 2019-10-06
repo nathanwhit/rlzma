@@ -19,12 +19,12 @@ impl<T: Write> Display for LZMAOutWindow<T> {
 }
 
 impl<T: Write> LZMAOutWindow<T> {
-    pub fn new(out_file: T, dict_size: u32) -> LZMAOutWindow<T> {
+    pub fn new(out: T, dict_size: u32) -> LZMAOutWindow<T> {
         let size = dict_size as usize;
         let buf = vec![0u8; dict_size as usize];
         let pos = 0;
         let total_pos = 0;
-        let outstream = LZMAOutputStream::new(out_file);
+        let outstream = LZMAOutputStream::new(out);
         LZMAOutWindow {
             buf,
             pos,
@@ -75,9 +75,9 @@ impl<T: Write> std::ops::Drop for LZMAOutWindow<T> {
 pub(crate) struct LZMAOutputStream<T: Write>(BufWriter<T>);
 
 #[derive(Debug)]
-pub(crate) struct LZMAInputStream(BufReader<File, MinBuffered>);
+pub(crate) struct LZMAInputStream<R>(BufReader<R, MinBuffered>);
 
-impl LZMAInputStream {
+impl<R: Read> LZMAInputStream<R> {
     pub(crate) fn read_byte(&mut self) -> Byte {
         let b = if self.0.buf_len()==0 {
             self.0.fill_buf().unwrap()[0]
@@ -87,9 +87,9 @@ impl LZMAInputStream {
         self.0.consume(1);
         b
     }
-    pub fn new(input_file: File) -> LZMAInputStream {
+    pub fn new(input: R) -> LZMAInputStream<R> {
         LZMAInputStream(
-            BufReader::new(input_file).set_policy(MinBuffered(4))
+            BufReader::new(input).set_policy(MinBuffered(4))
         )
     }
 }
@@ -100,20 +100,25 @@ impl<T: Write> LZMAOutputStream<T> {
     }
 }
 
-#[derive(Debug)]
-pub(crate) struct LZMARangeDecoder {
+pub(crate) struct LZMARangeDecoder<R: Read> {
     range: u32,
     code: u32,
-    instream: LZMAInputStream,
+    instream: LZMAInputStream<R>,
     corrupted: bool,
 }
 
-impl LZMARangeDecoder {
-    pub fn new(input_file: File) -> LZMARangeDecoder {
+impl<R: Read> Debug for LZMARangeDecoder<R> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "range: {}, code: {}, corrupted: {}", self.range, self.code, self.corrupted)
+    }
+}
+
+impl<R: Read> LZMARangeDecoder<R> {
+    pub fn new(input: R) -> LZMARangeDecoder<R> {
         LZMARangeDecoder {
             range: 0xFFFF_FFFF,
             code: 0,
-            instream: LZMAInputStream::new(input_file),
+            instream: LZMAInputStream::new(input),
             corrupted: false,
         }
     }
@@ -221,7 +226,7 @@ impl LZMABitTreeDecoder {
         }
     }
 
-    pub fn decode(&mut self, range_dec: &mut LZMARangeDecoder) -> Result<usize> {
+    pub fn decode<R: Read>(&mut self, range_dec: &mut LZMARangeDecoder<R>) -> Result<usize> {
         let mut m: u32 = 1;
         for _ in 0..self.num_bits {
             m = (m << 1) + range_dec.decode_bit(&self.probs[m as usize])?;
@@ -229,11 +234,11 @@ impl LZMABitTreeDecoder {
         Ok((m - (1 << self.num_bits)).try_into()?)
     }
 
-    pub fn reverse_decode(&mut self, range_dec: &mut LZMARangeDecoder) -> Result<usize> {
+    pub fn reverse_decode<R: Read>(&mut self, range_dec: &mut LZMARangeDecoder<R>) -> Result<usize> {
         LZMABitTreeDecoder::rev_decode(&self.probs[..], self.num_bits, range_dec)
     }
 
-    pub fn rev_decode(probs: &[Cell<LZMAProb>], num_bits: usize, range_dec: &mut LZMARangeDecoder) -> Result<usize> {
+    pub fn rev_decode<R: Read>(probs: &[Cell<LZMAProb>], num_bits: usize, range_dec: &mut LZMARangeDecoder<R>) -> Result<usize> {
         let mut m: usize = 1;
         let mut symbol = 0;
         for i in 0..num_bits {
@@ -273,7 +278,7 @@ impl LZMALenDecoder {
             high_coder: LZMABitTreeDecoder::new(8),
         }
     }
-    pub fn decode(&mut self, range_dec: &mut LZMARangeDecoder, pos_state: usize) -> Result<usize> {
+    pub fn decode<R: Read>(&mut self, range_dec: &mut LZMARangeDecoder<R>, pos_state: usize) -> Result<usize> {
         Ok(if range_dec.decode_bit(&self.choice)? == 0 {
             self.low_coder[pos_state].decode(range_dec)?
         } else if range_dec.decode_bit(&self.choice_2)? == 0 {
@@ -316,7 +321,7 @@ impl LZMADistanceDecoder {
         }
     }
 
-    pub fn decode_distance(&mut self, len: usize, range_dec: &mut LZMARangeDecoder) -> Result<u32> {
+    pub fn decode_distance<R: Read>(&mut self, len: usize, range_dec: &mut LZMARangeDecoder<R>) -> Result<u32> {
         let mut len_state = len;
         if len_state > Self::NUM_LEN_POS_STATES - 1{
             len_state = Self::NUM_LEN_POS_STATES-1;

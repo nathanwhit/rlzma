@@ -2,7 +2,6 @@ pub mod constants;
 pub(crate) mod internal;
 
 pub use std::vec::Vec;
-pub use std::fs::File;
 pub use std::io::{BufRead, BufWriter, Read, Write, Bytes};
 pub use buf_redux::BufReader;
 pub use std::cell::Cell;
@@ -15,6 +14,8 @@ pub use crate::errors::{Result, Error, ErrorKind, ResultExt};
 pub use std::{fmt, fmt::Display};
 use std::ops::Not;
 
+#[cfg(feature = "debugging")]
+pub use std::fs::File;
 #[cfg(feature = "debugging")]
 pub use log::{info, log, warn, debug};
 
@@ -195,11 +196,11 @@ pub(crate) enum BitMatch {
 }
 
 #[derive(Debug)]
-pub struct LZMADecoder<T: Write> {
+pub struct LZMADecoder<R: Read, T: Write> {
     props: LZMAProps,
     literal_probs: Vec<Cell<LZMAProb>>,
     out_window: LZMAOutWindow<T>,
-    range_dec: LZMARangeDecoder,
+    range_dec: LZMARangeDecoder<R>,
     len_dec: LZMALenDecoder,
     rep_len_dec: LZMALenDecoder,
     dist_dec: LZMADistanceDecoder,
@@ -207,27 +208,27 @@ pub struct LZMADecoder<T: Write> {
     cacher: LZMACacher,
 }
 
-impl<T: Write> fmt::Display for LZMADecoder<T> {
+impl<R: Read, T: Write> fmt::Display for LZMADecoder<R, T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "LZMADecoder {{\n\tprops: {:?},\n\tout_window: {},\n\trange_dec: {:?},\n\tlen_dec: {:?},\n\trep_len_dec: {:?},\n\tdist_dec: {:?},\n\tunpack_size: {}\n}}", self.props, self.out_window, self.range_dec, self.len_dec, self.rep_len_dec, self.dist_dec, self.unpack_size)
     }
 }
 
-impl<T: Write> LZMADecoder<T> {
-    pub fn new(mut input_file: File, output_file: T) -> LZMADecoder<T> {
+impl<R: Read, T: Write> LZMADecoder<R, T> {
+    pub fn new(mut input: R, output: T) -> LZMADecoder<R, T> {
         let mut raw_props: [Byte; 5] = [0; 5];
-        input_file.read_exact(&mut raw_props).expect("Failed to read properties from file");
+        input.read_exact(&mut raw_props).expect("Failed to read properties from input source");
         let props = LZMAProps::decode_properties(&raw_props);
         let mut raw_unpack_size: [Byte; 8] = [0; 8];
-        input_file.read_exact(&mut raw_unpack_size).expect("Failed to read uncompressed size from file");
+        input.read_exact(&mut raw_unpack_size).expect("Failed to read uncompressed size from input source");
         let unpack_size = u64::from_le_bytes(raw_unpack_size);
         let literal_probs = vec![Cell::new(PROB_INIT_VAL); 0x300<<(props.lc + props.lp)];
         let dict_size = props.dict_size;
         LZMADecoder {
             props,
             literal_probs,
-            out_window: LZMAOutWindow::new(output_file, dict_size),
-            range_dec: LZMARangeDecoder::new(input_file),
+            out_window: LZMAOutWindow::new(output, dict_size),
+            range_dec: LZMARangeDecoder::new(input),
             len_dec: LZMALenDecoder::new(),
             rep_len_dec: LZMALenDecoder::new(),
             dist_dec: LZMADistanceDecoder::new(),
@@ -244,8 +245,8 @@ impl<T: Write> LZMADecoder<T> {
         self.cacher.prev_byte_shift()
     }
     
-    pub fn decode(input_file: File, output: T) -> Result<()> {
-        let mut decoder = LZMADecoder::new(input_file, output);
+    pub fn decode(input: R, output: T) -> Result<()> {
+        let mut decoder = LZMADecoder::new(input, output);
         decoder._decode().map_err(|e| {
             eprintln!("{}", e.display_chain().to_string());
             #[cfg(feature = "debugging")]
