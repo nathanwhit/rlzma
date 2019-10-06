@@ -67,7 +67,7 @@ impl<T: Write> LZMAOutWindow<T> {
 
 impl<T: Write> std::ops::Drop for LZMAOutWindow<T> {
     fn drop(&mut self) {
-        self.outstream.0.write_all(&self.buf).expect("Failed to write buffer on drop");
+        self.outstream.0.write_all(&self.buf[..self.pos]).expect("Failed to write buffer on drop");
     }
 }
 
