@@ -35,7 +35,7 @@ pub(crate) const PROB_INIT_VAL: LZMAProb = ((1 << NUM_BIT_MODEL_TOTAL_BITS) / 2)
 
 
 #[derive(Clone, Debug, Copy)]
-pub(crate) struct LZMAProps {
+pub struct LZMAProps {
     lc: Byte,
     lp: Byte,
     pb: Byte,
@@ -215,6 +215,20 @@ impl<R: Read, W: Write> fmt::Display for LZMADecoder<R, W> {
 }
 
 impl<R: Read, W: Write> LZMADecoder<R, W> {
+    pub fn with_props(props: LZMAProps, input: R, output: W) -> LZMADecoder<R, W> {
+        LZMADecoder {
+            props,
+            literal_probs: vec![Cell::new(PROB_INIT_VAL); 0x300<<(props.lc + props.lp)],
+            len_dec: LZMALenDecoder::new(),
+            range_dec: LZMARangeDecoder::new(input),
+            out_window: LZMAOutWindow::new(output, props.dict_size),
+            rep_len_dec: LZMALenDecoder::new(),
+            dist_dec: LZMADistanceDecoder::new(),
+            unpack_size: u64::MAX,
+            cacher: LZMACacher::new(props)
+        }
+    }
+
     pub fn new(mut input: R, output: W) -> LZMADecoder<R, W> {
         let mut raw_props: [Byte; 5] = [0; 5];
         input.read_exact(&mut raw_props).expect("Failed to read properties from input source");
