@@ -9,8 +9,8 @@ pub use std::convert::{TryInto};
 use std::fmt::Debug;
 use std::mem;
 use std::u64;
-pub use error_chain::{bail, ChainedError, ensure};
-pub use crate::errors::{Result, Error, ErrorKind, ResultExt};
+pub use crate::errors::*;
+pub use crate::{bail, ensure};
 pub use std::{fmt, fmt::Display};
 use std::ops::Not;
 
@@ -32,7 +32,6 @@ pub(crate) const MIN_MATCH_LEN: usize = 2;
 pub(crate) const NUM_BIT_MODEL_TOTAL_BITS: LZMAProb = 11;
 pub(crate) const NUM_MOVE_BITS: LZMAProb = 5;
 pub(crate) const PROB_INIT_VAL: LZMAProb = ((1 << NUM_BIT_MODEL_TOTAL_BITS) / 2);
-
 
 #[derive(Clone, Debug, Copy)]
 pub struct LZMAProps {
@@ -262,7 +261,7 @@ impl<R: Read, W: Write> LZMADecoder<R, W> {
     pub fn decode(input: R, output: W) -> Result<()> {
         let mut decoder = LZMADecoder::new(input, output);
         decoder._decode().map_err(|e| {
-            eprintln!("{}", e.display_chain().to_string());
+            eprintln!("{}", e.to_string());
             #[cfg(feature = "debugging")]
             eprintln!("Wrote state at error time to : {}", decoder.dump_state().unwrap());
             e
@@ -347,7 +346,7 @@ impl<R: Read, W: Write> LZMADecoder<R, W> {
                 // Literal
                 BitMatch::Zero => {
                     if size_defined && self.unpack_size == 0 {
-                        bail!(ErrorKind::NotEnoughInput(String::from("literal data")));
+                        bail!(LZMAError::NotEnoughInput(String::from("literal data")));
                     }
                     self.decode_literal(state.value(), rep0)?;
                     state = state.next_literal();
@@ -355,7 +354,7 @@ impl<R: Read, W: Write> LZMADecoder<R, W> {
                 }
                 BitMatch::One => { 
                     if size_defined && self.unpack_size == 0 {
-                        bail!(ErrorKind::NotEnoughInput(String::from("match encoded data")));
+                        bail!(LZMAError::NotEnoughInput(String::from("match encoded data")));
                     }
                     match self.decode_bit(&is_rep[state.value()])? {
                         // Simple match
@@ -373,14 +372,14 @@ impl<R: Read, W: Write> LZMADecoder<R, W> {
                                 return if self.range_dec.is_finished() {
                                     Ok(LZMADecoderRes::FinishedMarked)
                                 } else {
-                                    bail!(ErrorKind::EarlyEndMarker);
+                                    bail!(LZMAError::EarlyEndMarker);
                                 }
                             }
                             if size_defined && self.unpack_size == 0 {
-                                bail!(ErrorKind::NotEnoughInput(String::from("Expected simple match encoded data")));
+                                bail!(LZMAError::NotEnoughInput(String::from("Expected simple match encoded data")));
                             }
-                            ensure!(rep0 < dict_size, ErrorKind::OverDictSize(rep0, dict_size));
-                            ensure!(self.out_window.check_distance(rep0), format!("Distance was too large: {}\nPosition was: {}", rep0, self.out_window.pos));
+                            ensure!(rep0 < dict_size, LZMAError::OverDictSize(rep0, dict_size));
+                            ensure!(self.out_window.check_distance(rep0), LZMAError::Other(format!("Distance was too large: {}\nPosition was: {}", rep0, self.out_window.pos)));
                             self.copy_match_symbols(len, rep0, size_defined);
                         }
                         // Rep match
@@ -389,10 +388,10 @@ impl<R: Read, W: Write> LZMADecoder<R, W> {
                                 debug!("decoding rep match");
 
                                 if size_defined && self.unpack_size == 0 {
-                                    bail!(ErrorKind::NotEnoughInput(String::from("repeated match encoded data")))
+                                    bail!(LZMAError::NotEnoughInput(String::from("repeated match encoded data")))
                                 }
                                 if self.out_window.is_empty() {
-                                    bail!("Output window was empty when decoding a repeated match");
+                                    bail!(LZMAError::Other(String::from("Output window was empty when decoding a repeated match")));
                                 }
                                 match self.decode_bit(&is_rep_g0[state.value()])? {
                                 // Rep match distance = rep0
@@ -475,14 +474,14 @@ impl<R: Read, W: Write> LZMADecoder<R, W> {
         } else if decoded == 0 {
             BitMatch::Zero
         } else {
-            bail!("Range-Decoded bit was an unexpected result (not 0/1)")
+            bail!(LZMAError::Other(String::from("Range-Decoded bit was an unexpected result (not 0/1)")))
         })
     }
 
     fn copy_match_symbols(&mut self, len: usize, rep0: u32, size_defined: bool) {
         let len = len + MIN_MATCH_LEN;
         if size_defined && self.unpack_size < len as u64 {
-            // bail!(ErrorKind::NotEnoughInput(String::from("matched symbols to copy")));
+            // bail!(LZMAError::NotEnoughInput(String::from("matched symbols to copy")));
             panic!();
         }
         self.out_window.copy_match(rep0 + 1, len);

@@ -133,7 +133,7 @@ impl<R: Read> LZMARangeDecoder<R> {
             self.corrupted = true;
         }
         if self.corrupted {
-            bail!(ErrorKind::LZMAStreamCorrupted)
+            bail!(LZMAError::StreamCorrupted)
         } else {
             Ok(())
         }

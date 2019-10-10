@@ -1,38 +1,47 @@
-use error_chain::{error_chain};
+pub use thiserror::{Error};
+pub(crate) type Result<T> = std::result::Result<T, LZMAError>;
+use std::convert::From;
+use std::num::TryFromIntError;
 
-error_chain! {
-    foreign_links {
-        Fmt(std::fmt::Error);
-        Io(std::io::Error);
-        Int(std::num::TryFromIntError);
-        Impossible(std::convert::Infallible);
-    }
+#[derive(Error, Debug)]
+pub enum LZMAError {
+    #[error("not enough input, expected {}", .0)]
+    NotEnoughInput(String),
 
-    errors {
-        NotEnoughInput(s: String) {
-            description("Input LZMA stream ended prematurely"),
-            display("Expected {}", s),
+    #[error("end of stream marker appeared before the data was fully decompressed")]
+    EarlyEndMarker,
+
+    #[error("the LZMA stream entered an invalid state")]
+    StreamCorrupted,
+
+    #[error("found match distance `{}` but dict size is `{}`", .0, .1)]
+    OverDictSize(u32, u32),
+
+    #[error("integer type conversion failed, usize is not large enough")]
+    ConversionFail(TryFromIntError),
+
+    #[error("{}", .0)]
+    Other(String)
+}
+
+#[macro_export]
+macro_rules!  bail {
+    ($e: expr) => {
+        return Err($e);
+    };
+}
+
+#[macro_export]
+macro_rules! ensure {
+    ($c: expr, $e: expr) => {
+        if !($c) {
+            bail!($e)
         }
+    };
+}
 
-        EarlyEndMarker {
-            description("End marker appeared before the data was fully decompressed")
-        }
-
-        LZMAStreamCorrupted {
-            description("The LZMA stream was corrupted during the process of decoding"),
-        }
-
-        SymbolCopyFailed {
-            description("Failed to copy decoded symbols")
-        }
-
-        OverDictSize(l: u32, d: u32) {
-            description("A match distance was greater than the encoding dictionary size"),
-            display("Found match distance: `{}` but dictionary size is: `{}`", l, d),
-        }
-
-        WriteFailed {
-            description("Failed to write decoded byte")
-        }
+impl From<TryFromIntError> for LZMAError {
+    fn from(error: TryFromIntError) -> Self {
+        LZMAError::ConversionFail(error)
     }
 }
