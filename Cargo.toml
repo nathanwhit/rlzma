@@ -8,8 +8,8 @@ exclude = ["c_version/**/*", "cpp_version/**/*"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-error-chain = "0.12.1"
 buf_redux = "0.8.4"
+thiserror = "1.0.1"
 
 log = {version = "0.4.8", optional = true}
 env_logger = {version = "0.6.2", optional = true}

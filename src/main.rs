@@ -3,7 +3,6 @@ extern crate rustlzma;
 use rustlzma::lzma::decoder::{LZMADecoder};
 use std::fs::{File};
 use std::path::{Path, PathBuf};
-use error_chain::ChainedError;
 use std::process::exit;
 #[cfg(feature = "debugging")]
 use env_logger;
@@ -40,7 +39,7 @@ fn main() {
     match LZMADecoder::decode(in_file, out_file) {
         Ok(..) => (),
         Err(e) => {
-            eprintln!("An error occurred: {}", e.display_chain())
+            eprintln!("An error occurred: {}", e.to_string())
         }
     }
 }
