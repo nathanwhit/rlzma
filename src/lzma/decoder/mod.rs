@@ -197,7 +197,7 @@ pub(crate) enum BitMatch {
 #[derive(Debug)]
 pub struct LZMADecoder<R: Read, W: Write> {
     props: LZMAProps,
-    literal_probs: Vec<Cell<LZMAProb>>,
+    literal_probs: Vec<LZMAProb>,
     out_window: LZMAOutWindow<W>,
     range_dec: LZMARangeDecoder<R>,
     len_dec: LZMALenDecoder,
@@ -217,7 +217,7 @@ impl<R: Read, W: Write> LZMADecoder<R, W> {
     pub fn with_props(props: LZMAProps, input: R, output: W) -> LZMADecoder<R, W> {
         LZMADecoder {
             props,
-            literal_probs: vec![Cell::new(PROB_INIT_VAL); 0x300<<(props.lc + props.lp)],
+            literal_probs: vec![PROB_INIT_VAL; 0x300<<(props.lc + props.lp)],
             len_dec: LZMALenDecoder::new(),
             range_dec: LZMARangeDecoder::new(input),
             out_window: LZMAOutWindow::new(output, props.dict_size),
@@ -235,7 +235,7 @@ impl<R: Read, W: Write> LZMADecoder<R, W> {
         let mut raw_unpack_size: [Byte; 8] = [0; 8];
         input.read_exact(&mut raw_unpack_size).expect("Failed to read uncompressed size from input source");
         let unpack_size = u64::from_le_bytes(raw_unpack_size);
-        let literal_probs = vec![Cell::new(PROB_INIT_VAL); 0x300<<(props.lc + props.lp)];
+        let literal_probs = vec![PROB_INIT_VAL; 0x300<<(props.lc + props.lp)];
         let dict_size = props.dict_size;
         LZMADecoder {
             props,
@@ -288,7 +288,7 @@ impl<R: Read, W: Write> LZMADecoder<R, W> {
                 let match_bit: usize = (match_byte >> 7) & 1;
                 match_byte <<= 1;
     
-                let bit: usize = self.range_dec.decode_bit(&probs[((1 + match_bit) << 8) as usize + symbol])? as usize;
+                let bit: usize = self.range_dec.decode_bit(&mut probs[((1 + match_bit) << 8) as usize + symbol])? as usize;
                 symbol = (symbol << 1) | bit;
                 if match_bit != bit {
                     break;
@@ -300,7 +300,7 @@ impl<R: Read, W: Write> LZMADecoder<R, W> {
         }
 
             while symbol < 0x100 {
-            symbol = (symbol << 1) | self.range_dec.decode_bit(&probs[symbol])? as usize;
+            symbol = (symbol << 1) | self.range_dec.decode_bit(&mut probs[symbol])? as usize;
             }
 
             self.out_window.put_byte((symbol - 0x100) as Byte);
@@ -323,12 +323,12 @@ impl<R: Read, W: Write> LZMADecoder<R, W> {
         };
 
 
-        let is_match = vec![Cell::new(PROB_INIT_VAL); Self::NUM_STATES << NUM_POS_BITS_MAX];
-        let is_rep = vec![Cell::new(PROB_INIT_VAL); Self::NUM_STATES];
-        let is_rep_g0 = vec![Cell::new(PROB_INIT_VAL); Self::NUM_STATES];
-        let is_rep_g1 = vec![Cell::new(PROB_INIT_VAL); Self::NUM_STATES];
-        let is_rep_g2 = vec![Cell::new(PROB_INIT_VAL); Self::NUM_STATES];
-        let is_rep0_long = vec![Cell::new(PROB_INIT_VAL); Self::NUM_STATES << NUM_POS_BITS_MAX];
+        let mut is_match = vec![PROB_INIT_VAL; Self::NUM_STATES << NUM_POS_BITS_MAX];
+        let mut is_rep = vec![PROB_INIT_VAL; Self::NUM_STATES];
+        let mut is_rep_g0 = vec![PROB_INIT_VAL; Self::NUM_STATES];
+        let mut is_rep_g1 = vec![PROB_INIT_VAL; Self::NUM_STATES];
+        let mut is_rep_g2 = vec![PROB_INIT_VAL; Self::NUM_STATES];
+        let mut is_rep0_long = vec![PROB_INIT_VAL; Self::NUM_STATES << NUM_POS_BITS_MAX];
 
         let (mut rep0, mut rep1, mut rep2, mut rep3) = (0, 0, 0, 0);
         let pos_state_mask = (1 << self.props.pb) - 1;
@@ -342,7 +342,7 @@ impl<R: Read, W: Write> LZMADecoder<R, W> {
             }
             let pos_state = self.out_window.total_pos & pos_state_mask;
             let state2: usize = (state.value() << NUM_POS_BITS_MAX) + pos_state;
-            match self.decode_bit(&is_match[state2])? {
+            match self.decode_bit(&mut is_match[state2])? {
                 // Literal
                 BitMatch::Zero => {
                     if size_defined && self.unpack_size == 0 {
@@ -356,7 +356,7 @@ impl<R: Read, W: Write> LZMADecoder<R, W> {
                     if size_defined && self.unpack_size == 0 {
                         bail!(LZMAError::NotEnoughInput(String::from("match encoded data")));
                     }
-                    match self.decode_bit(&is_rep[state.value()])? {
+                    match self.decode_bit(&mut is_rep[state.value()])? {
                         // Simple match
                         BitMatch::Zero => {
                             #[cfg(feature = "debugging")]
@@ -393,9 +393,9 @@ impl<R: Read, W: Write> LZMADecoder<R, W> {
                                 if self.out_window.is_empty() {
                                     bail!(LZMAError::Other(String::from("Output window was empty when decoding a repeated match")));
                                 }
-                                match self.decode_bit(&is_rep_g0[state.value()])? {
+                                match self.decode_bit(&mut is_rep_g0[state.value()])? {
                                 // Rep match distance = rep0
-                                BitMatch::Zero => match self.decode_bit(&is_rep0_long[state2])? {
+                                BitMatch::Zero => match self.decode_bit(&mut is_rep0_long[state2])? {
                                     // Short rep match
                                     BitMatch::Zero => {
                                         #[cfg(feature = "debugging")]
@@ -417,7 +417,7 @@ impl<R: Read, W: Write> LZMADecoder<R, W> {
                                     }
                                 }
                                 // Keep matching
-                                BitMatch::One => match self.decode_bit(&is_rep_g1[state.value()])? {
+                                BitMatch::One => match self.decode_bit(&mut is_rep_g1[state.value()])? {
                                     // Rep match 1
                                     BitMatch::Zero => {
                                         #[cfg(feature = "debugging")]
@@ -429,7 +429,7 @@ impl<R: Read, W: Write> LZMADecoder<R, W> {
                                         self.copy_match_symbols(len, rep0, size_defined);
                                     }
                                     // Keep matching
-                                    BitMatch::One => match self.decode_bit(&is_rep_g2[state.value()])? {
+                                    BitMatch::One => match self.decode_bit(&mut is_rep_g2[state.value()])? {
                                         // Rep match 2
                                         BitMatch::Zero => {
                                             #[cfg(feature = "debugging")]
@@ -467,7 +467,7 @@ impl<R: Read, W: Write> LZMADecoder<R, W> {
         }
     }
 
-    fn decode_bit(&mut self, prob: &Cell<LZMAProb>) -> Result<BitMatch> {
+    fn decode_bit(&mut self, prob: &mut LZMAProb) -> Result<BitMatch> {
         let decoded = self.range_dec.decode_bit(prob)?;
         Ok(if decoded == 1 {
             BitMatch::One

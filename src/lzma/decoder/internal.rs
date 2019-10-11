@@ -198,8 +198,8 @@ impl<R: Read> LZMARangeDecoder<R> {
 
     const MAXVAL: LZMAProb = 1 << NUM_BIT_MODEL_TOTAL_BITS;
 
-    pub fn decode_bit(&mut self, prob: &Cell<LZMAProb>) -> Result<u32> {
-        let mut val = prob.get();
+    pub fn decode_bit(&mut self, prob: &mut LZMAProb) -> Result<u32> {
+        let mut val = *prob;
         let mut range = self.range;
         let mut code = self.code;
         let bound = (self.range >> NUM_BIT_MODEL_TOTAL_BITS) * u32::from(val);
@@ -214,9 +214,9 @@ impl<R: Read> LZMARangeDecoder<R> {
                 range -= bound;
                 1
             };
-        prob.set(val);
         self.code = code;
         self.range = range;
+        *prob = val;
         self.normalize()?;
         Ok(symbol)
     }
@@ -225,7 +225,7 @@ impl<R: Read> LZMARangeDecoder<R> {
 #[derive(Clone)]
 pub(crate) struct LZMABitTreeDecoder {
     num_bits: usize,
-    probs: Vec<Cell<LZMAProb>>
+    probs: Vec<LZMAProb>
 }
 
 impl Display for LZMABitTreeDecoder {
@@ -244,27 +244,28 @@ impl LZMABitTreeDecoder {
     pub fn new(num_bits: usize) -> Self {
         LZMABitTreeDecoder {
             num_bits,
-            probs: vec![Cell::new(PROB_INIT_VAL); 1 << num_bits as usize]
+            probs: vec![PROB_INIT_VAL; 1 << num_bits as usize]
         }
     }
 
     pub fn decode<R: Read>(&mut self, range_dec: &mut LZMARangeDecoder<R>) -> Result<usize> {
         let mut m: u32 = 1;
+        let probs = &mut self.probs;
         for _ in 0..self.num_bits {
-            m = (m << 1) + range_dec.decode_bit(&self.probs[m as usize])?;
+            m = (m << 1) + range_dec.decode_bit(&mut probs[m as usize])?;
         }
         Ok((m - (1 << self.num_bits)).try_into()?)
     }
 
     pub fn reverse_decode<R: Read>(&mut self, range_dec: &mut LZMARangeDecoder<R>) -> Result<usize> {
-        LZMABitTreeDecoder::rev_decode(&self.probs[..], self.num_bits, range_dec)
+        LZMABitTreeDecoder::rev_decode(&mut self.probs[..], self.num_bits, range_dec)
     }
 
-    pub fn rev_decode<R: Read>(probs: &[Cell<LZMAProb>], num_bits: usize, range_dec: &mut LZMARangeDecoder<R>) -> Result<usize> {
+    pub fn rev_decode<R: Read>(probs: &mut [LZMAProb], num_bits: usize, range_dec: &mut LZMARangeDecoder<R>) -> Result<usize> {
         let mut m: usize = 1;
         let mut symbol = 0;
         for i in 0..num_bits {
-            let bit = range_dec.decode_bit(&probs[m])?;
+            let bit = range_dec.decode_bit(&mut probs[m])?;
             m <<= 1;
             m += bit as usize;
             symbol |= bit << i;
@@ -277,8 +278,8 @@ pub(crate) const NUM_POS_BITS_MAX: usize = 4;
 
 #[derive(Clone, Debug)]
 pub(crate) struct LZMALenDecoder {
-    choice: Cell<LZMAProb>,
-    choice_2: Cell<LZMAProb>,
+    choice: LZMAProb,
+    choice_2: LZMAProb,
     low_coder: Vec<LZMABitTreeDecoder>,
     mid_coder: Vec<LZMABitTreeDecoder>,
     high_coder: LZMABitTreeDecoder
@@ -286,24 +287,24 @@ pub(crate) struct LZMALenDecoder {
 
 impl Display for LZMALenDecoder {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "LZMALenDecoder {{ choice: {}, choice_2: {}, low_coder: {:?}, mid_coder: {:?}, high_coder: {:?} }}", self.choice.get(), self.choice_2.get(), self.low_coder, self.mid_coder, self.high_coder)
+        write!(f, "LZMALenDecoder {{ choice: {}, choice_2: {}, low_coder: {:?}, mid_coder: {:?}, high_coder: {:?} }}", self.choice, self.choice_2, self.low_coder, self.mid_coder, self.high_coder)
     }
 }
 
 impl LZMALenDecoder {
     pub fn new() -> Self {
         LZMALenDecoder {
-            choice: Cell::new(PROB_INIT_VAL),
-            choice_2: Cell::new(PROB_INIT_VAL),
+            choice: PROB_INIT_VAL,
+            choice_2: PROB_INIT_VAL,
             low_coder: vec![LZMABitTreeDecoder::new(3); 1 << NUM_POS_BITS_MAX],
             mid_coder: vec![LZMABitTreeDecoder::new(3); 1 << NUM_POS_BITS_MAX],
             high_coder: LZMABitTreeDecoder::new(8),
         }
     }
     pub fn decode<R: Read>(&mut self, range_dec: &mut LZMARangeDecoder<R>, pos_state: usize) -> Result<usize> {
-        Ok(if range_dec.decode_bit(&self.choice)? == 0 {
+        Ok(if range_dec.decode_bit(&mut self.choice)? == 0 {
             self.low_coder[pos_state].decode(range_dec)?
-        } else if range_dec.decode_bit(&self.choice_2)? == 0 {
+        } else if range_dec.decode_bit(&mut self.choice_2)? == 0 {
             8 + self.mid_coder[pos_state].decode(range_dec)?
         } else {
             16 + self.high_coder.decode(range_dec)?
@@ -314,7 +315,7 @@ impl LZMALenDecoder {
 #[derive(Clone)]
 pub(crate) struct LZMADistanceDecoder {
     pos_slot_dec: Vec<LZMABitTreeDecoder>,
-    pos_decs: Vec<Cell<LZMAProb>>,
+    pos_decs: Vec<LZMAProb>,
     align_dec: LZMABitTreeDecoder, 
 }
 
@@ -338,7 +339,7 @@ impl LZMADistanceDecoder {
     pub fn new() -> Self {
         LZMADistanceDecoder {
             pos_slot_dec: vec![LZMABitTreeDecoder::new(6); Self::NUM_LEN_POS_STATES],
-            pos_decs: vec![Cell::new(PROB_INIT_VAL); 1 + Self::NUM_FULL_DISTS - Self::END_POS_MODEL_IDX],
+            pos_decs: vec![PROB_INIT_VAL; 1 + Self::NUM_FULL_DISTS - Self::END_POS_MODEL_IDX],
             align_dec: LZMABitTreeDecoder::new(Self::NUM_ALIGN_BITS),
         }
     }
@@ -356,7 +357,7 @@ impl LZMADistanceDecoder {
         let num_direct_bits = (pos_slot >> 1) - 1;
         let mut dist: u32 = ((2 | (pos_slot & 1)) << num_direct_bits).try_into()?;
         if pos_slot < Self::END_POS_MODEL_IDX {
-            dist += LZMABitTreeDecoder::rev_decode(&self.pos_decs[dist.overflowing_sub(pos_slot as u32).0 as usize..], num_direct_bits as usize, range_dec)? as u32;
+            dist += LZMABitTreeDecoder::rev_decode(&mut self.pos_decs[dist.overflowing_sub(pos_slot as u32).0 as usize..], num_direct_bits as usize, range_dec)? as u32;
         } else {
             dist += range_dec.decode_direct_bits(num_direct_bits-Self::NUM_ALIGN_BITS)? << Self::NUM_ALIGN_BITS;
             dist += self.align_dec.reverse_decode(range_dec)? as u32;
