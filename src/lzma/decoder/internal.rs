@@ -3,13 +3,19 @@ use buf_redux::policy::MinBuffered;
 
 mod tests;
 
-#[derive(Debug)]
 pub(crate) struct LZMAOutWindow<T: Write> {
+    mini_buf: [Byte; 4096],
     buf: Vec<Byte>,
     pub(super) pos: usize,
     size: usize,
     pub total_pos: usize,
     pub outstream: LZMAOutputStream<T>,
+}
+
+impl<T: Write> Debug for LZMAOutWindow<T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        <Self as Display>::fmt(self, f)
+    }
 }
 
 impl<T: Write> Display for LZMAOutWindow<T> {
@@ -26,6 +32,7 @@ impl<T: Write> LZMAOutWindow<T> {
         let total_pos = 0;
         let outstream = LZMAOutputStream::new(out);
         LZMAOutWindow {
+            mini_buf: [0u8; 4096],
             buf,
             pos,
             size,
@@ -38,12 +45,18 @@ impl<T: Write> LZMAOutWindow<T> {
     }
     pub(crate) fn put_byte(&mut self, b: Byte) {
         self.total_pos += 1;
-        if self.is_full() {
-            self.pos = 0;
+        let mut pos = self.pos;
+        if pos == self.size {
+            pos = 0;
             self.outstream.0.write_all(&self.buf).unwrap();
         }
-        self.buf[self.pos] = b;
-        self.pos += 1;
+        if pos < 4096 {
+            self.mini_buf[pos] = b;
+        }
+        self.buf[pos] = b;
+        
+        pos+=1;
+        self.pos = pos;
     }
     pub(crate) fn get_byte(&self, dist: u32) -> Byte {
         let idx = if dist as usize <= self.pos {
@@ -51,11 +64,16 @@ impl<T: Write> LZMAOutWindow<T> {
         } else {
             self.size - dist as usize + self.pos
         };
-        // self.buf.get(idx).ok_or_else(|| String::from("Index was beyond the buffer").into()).map(|b| *b)
-        *self.buf.get(idx).unwrap()
+        if idx < 4096 {
+            self.mini_buf[idx]
+        } else {
+            self.buf[idx]
+        }
     }
     pub(crate) fn copy_match(&mut self, dist: u32, len: usize){
-        (0..len).for_each(|_| { self.put_byte(self.get_byte(dist)) });
+        for _ in 0..len {
+            self.put_byte(self.get_byte(dist));
+        }
     }
     pub(crate) fn check_distance(&self, dist: u32) -> bool {
         dist <= self.total_pos as u32 || self.is_full()
@@ -182,19 +200,23 @@ impl<R: Read> LZMARangeDecoder<R> {
 
     pub fn decode_bit(&mut self, prob: &Cell<LZMAProb>) -> Result<u32> {
         let mut val = prob.get();
+        let mut range = self.range;
+        let mut code = self.code;
         let bound = (self.range >> NUM_BIT_MODEL_TOTAL_BITS) * u32::from(val);
         let symbol =
-            if self.code < bound {
+            if code < bound {
                 val += (Self::MAXVAL - val) >> NUM_MOVE_BITS;
-                self.range = bound;
+                range = bound;
                 0
             } else {
                 val -= val >> NUM_MOVE_BITS;
-                self.code -= bound;
-                self.range -= bound;
+                code -= bound;
+                range -= bound;
                 1
             };
         prob.set(val);
+        self.code = code;
+        self.range = range;
         self.normalize()?;
         Ok(symbol)
     }
