@@ -145,12 +145,12 @@ impl<R: Read> LZMARangeDecoder<R> {
 
     const TOP_VALUE: u32 = 1 << 24;
 
-    fn normalize(&mut self) -> Result<()>{
+    #[inline]
+    fn normalize(&mut self) {
         if self.range < Self::TOP_VALUE {
             self.range <<= 8;
             self.code = (self.code << 8) | u32::from(self.instream.read_byte())
         }
-        Ok(())
     }
     
     pub fn decode_direct_bits(&mut self, num_bits: usize) -> Result<u32> {
@@ -166,7 +166,7 @@ impl<R: Read> LZMARangeDecoder<R> {
                 self.corrupted = true;
             }
 
-            self.normalize()?;
+            self.normalize();
             res <<= 1;
             res = res.overflowing_add(t.overflowing_add(1).0).0;
             if num_bits <= 1 {
@@ -194,7 +194,7 @@ impl<R: Read> LZMARangeDecoder<R> {
                 self.range -= bound;
                 1
             };
-        self.normalize()?;
+        self.normalize();
         Ok((symbol, val))
     }
 }
