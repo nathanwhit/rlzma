@@ -180,8 +180,8 @@ impl<R: Read> LZMARangeDecoder<R> {
 
     const MAXVAL: LZMAProb = 1 << NUM_BIT_MODEL_TOTAL_BITS;
 
-    pub fn decode_bit(&mut self, prob: &mut LZMAProb) -> Result<u32> {
-        let mut val = *prob;
+    pub fn decode_bit(&mut self, prob: LZMAProb) -> Result<(u32, LZMAProb)> {
+        let mut val = prob;
         let bound = (self.range >> NUM_BIT_MODEL_TOTAL_BITS) * u32::from(val);
         let symbol =
             if self.code < bound {
@@ -194,16 +194,16 @@ impl<R: Read> LZMARangeDecoder<R> {
                 self.range -= bound;
                 1
             };
-        *prob = val;
         self.normalize()?;
-        Ok(symbol)
+        Ok((symbol, val))
     }
 }
 
 #[derive(Clone)]
 pub(crate) struct LZMABitTreeDecoder {
     num_bits: usize,
-    probs: Vec<LZMAProb>
+    probs: Vec<LZMAProb>,
+    offset: u32
 }
 
 impl Display for LZMABitTreeDecoder {
@@ -222,16 +222,19 @@ impl LZMABitTreeDecoder {
     pub fn new(num_bits: usize) -> Self {
         LZMABitTreeDecoder {
             num_bits,
-            probs: vec![PROB_INIT_VAL; 1 << num_bits as usize]
+            probs: vec![PROB_INIT_VAL; 1 << num_bits as usize],
+            offset: 1 << num_bits
         }
     }
 
     pub fn decode<R: Read>(&mut self, range_dec: &mut LZMARangeDecoder<R>) -> Result<usize> {
         let mut m: u32 = 1;
         for _ in 0..self.num_bits {
-            m = (m << 1) + range_dec.decode_bit(&mut self.probs[m as usize])?;
+            let (bit, prob) = range_dec.decode_bit(self.probs[m as usize])?;
+            self.probs[m as usize] = prob;
+            m = (m << 1) + bit;
         }
-        Ok((m - (1 << self.num_bits)).try_into()?)
+        Ok((m - self.offset).try_into()?)
     }
 
     pub fn reverse_decode<R: Read>(&mut self, range_dec: &mut LZMARangeDecoder<R>) -> Result<usize> {
@@ -242,7 +245,8 @@ impl LZMABitTreeDecoder {
         let mut m: usize = 1;
         let mut symbol = 0;
         for i in 0..num_bits {
-            let bit = range_dec.decode_bit(&mut probs[m])?;
+            let (bit, prob) = range_dec.decode_bit(probs[m])?;
+            probs[m] = prob;
             m <<= 1;
             m += bit as usize;
             symbol |= bit << i;
@@ -279,13 +283,19 @@ impl LZMALenDecoder {
         }
     }
     pub fn decode<R: Read>(&mut self, range_dec: &mut LZMARangeDecoder<R>, pos_state: usize) -> Result<usize> {
-        Ok(if range_dec.decode_bit(&mut self.choice)? == 0 {
-            self.low_coder[pos_state].decode(range_dec)?
-        } else if range_dec.decode_bit(&mut self.choice_2)? == 0 {
-            8 + self.mid_coder[pos_state].decode(range_dec)?
+        let (bit, prob) = range_dec.decode_bit(self.choice)?;
+        self.choice = prob;
+        if bit == 0 {
+            Ok(self.low_coder[pos_state].decode(range_dec)?)
         } else {
-            16 + self.high_coder.decode(range_dec)?
-        })
+            let (bit, prob) = range_dec.decode_bit(self.choice_2)?;
+            self.choice_2 = prob;
+            if bit == 0 {
+                Ok(8 + self.mid_coder[pos_state].decode(range_dec)?)
+            } else {
+                Ok(16 + self.high_coder.decode(range_dec)?)
+            }
+        }
     }
 }
 

@@ -286,8 +286,10 @@ impl<R: Read, W: Write> LZMADecoder<R, W> {
             loop {
                 let match_bit: usize = (match_byte >> 7) & 1;
                 match_byte <<= 1;
-    
-                let bit: usize = self.range_dec.decode_bit(&mut probs[((1 + match_bit) << 8) as usize + symbol])? as usize;
+                let idx = ((1 + match_bit) << 8) as usize + symbol;
+                let (bit, prob) = self.range_dec.decode_bit(probs[idx])?;
+                probs[idx] = prob;
+                let bit = bit as usize;
                 symbol = (symbol << 1) | bit;
                 if match_bit != bit {
                     break;
@@ -299,7 +301,9 @@ impl<R: Read, W: Write> LZMADecoder<R, W> {
         }
 
             while symbol < 0x100 {
-            symbol = (symbol << 1) | self.range_dec.decode_bit(&mut probs[symbol])? as usize;
+                let (bit, prob) = self.range_dec.decode_bit(probs[symbol])?;
+                probs[symbol] = prob;
+                symbol = (symbol << 1) | bit as usize;
             }
 
             self.out_window.put_byte((symbol - 0x100) as Byte);
@@ -467,7 +471,8 @@ impl<R: Read, W: Write> LZMADecoder<R, W> {
     }
 
     fn decode_bit(&mut self, prob: &mut LZMAProb) -> Result<BitMatch> {
-        let decoded = self.range_dec.decode_bit(prob)?;
+        let (decoded, p) = self.range_dec.decode_bit(*prob)?;
+        *prob = p;
         Ok(if decoded == 1 {
             BitMatch::One
         } else if decoded == 0 {
