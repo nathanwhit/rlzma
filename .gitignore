@@ -12,3 +12,5 @@ test_files
 *.dec
 enwik*
 temp*
+!benches/bench_files/*.lzma
+**/.DS_Store*
