@@ -153,27 +153,21 @@ impl<R: Read> LZMARangeDecoder<R> {
         }
     }
     
-    pub fn decode_direct_bits(&mut self, num_bits: usize) -> Result<u32> {
+    pub fn decode_direct_bits(&mut self, mut num_bits: usize) -> Result<u32> {
         let mut res: u32 = 0;
-        let mut num_bits = num_bits;
-        loop {
+        while num_bits >= 1 {
             self.range >>= 1;
-            self.code = self.code.overflowing_sub(self.range).0;
-            let t = 0u32.overflowing_sub(self.code >> 31).0;
-            self.code = self.code.overflowing_add(self.range & t).0;
+            self.code = self.code.wrapping_sub(self.range);
+
+            let t = 0u32.wrapping_sub(self.code >> 31);
+            self.code = self.code.wrapping_add(self.range & t);
 
             if self.code == self.range {
                 self.corrupted = true;
             }
-
             self.normalize();
-            res <<= 1;
-            res = res.overflowing_add(t.overflowing_add(1).0).0;
-            if num_bits <= 1 {
-                break;
-            } else {
-                num_bits-=1;
-            }
+            res = (res<<1).wrapping_add(t.wrapping_add(1));
+            num_bits -= 1;
         }
         Ok(res)
     }
