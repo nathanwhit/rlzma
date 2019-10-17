@@ -1,9 +1,10 @@
 pub mod constants;
 pub(crate) mod internal;
 
+pub(crate) use super::base::*;
+
 pub use std::vec::Vec;
 pub use std::io::{BufRead, BufWriter, Read, Write, Bytes};
-pub use buf_redux::BufReader;
 pub use std::convert::{TryInto};
 use std::fmt::Debug;
 use std::mem;
@@ -19,8 +20,6 @@ pub use std::fs::File;
 pub use log::{info, log, warn, debug};
 
 use internal::*;
-
-pub(crate) type Byte = u8;
 
 #[cfg(prob_u32)]
 type LZMAProb = u32;
