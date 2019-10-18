@@ -20,16 +20,15 @@ fn main() {
     let in_path = Path::new(&args[1]);
     
     let out_pathbuf = if args.len() < 3 {
-        if let Some(Some("lzma")) = in_path.extension().map(|s| s.to_str()) {
-            if let Some(filename) = in_path.file_stem() {
+        match in_path.extension().map(|s| s.to_str()) {
+            Some(Some("lzma")) | Some(Some("lz")) =>    if let Some(filename) = in_path.file_stem() {
                 in_path.with_file_name(filename)
             } else {
-                eprintln!("The file name was invalid");
-                exit(1);
+                    eprintln!("The file name was invalid");
+                    exit(1);
             }
-        } else {
-            in_path.with_extension("decoded")
-        }
+            _ => in_path.with_extension("decoded")
+        } 
     } else {
         PathBuf::from(&args[2])
     };

@@ -30,6 +30,7 @@ pub(crate) const MIN_MATCH_LEN: usize = 2;
 pub(crate) const NUM_BIT_MODEL_TOTAL_BITS: LZMAProb = 11;
 pub(crate) const NUM_MOVE_BITS: LZMAProb = 5;
 pub(crate) const PROB_INIT_VAL: LZMAProb = ((1 << NUM_BIT_MODEL_TOTAL_BITS) / 2);
+pub(crate) const LZIP_MAGIC: [u8; 4] = [0x4C, 0x5A, 0x49, 0x50];
 
 #[derive(Clone, Debug, Copy)]
 pub struct LZMAProps {
@@ -37,11 +38,12 @@ pub struct LZMAProps {
     lp: Byte,
     pb: Byte,
     dict_size: u32,
+    magic: Option<[Byte; 4]>
 }
 
 impl LZMAProps {
     const DICT_MIN: u32 = 1 << 12;
-    pub fn decode_properties(properties: &[Byte]) -> LZMAProps {
+    pub fn decode_lzma_properties(properties: &[Byte]) -> LZMAProps {
         let mut d = properties[0];
         if d >= (9*5*5) {
             panic!("Incorrect LZMA properties!");
@@ -61,6 +63,20 @@ impl LZMAProps {
             lp,
             pb,
             dict_size,
+            magic: None
+        }
+    }
+
+    pub fn lzip_properties(d: Byte) -> LZMAProps {
+        let base_size = d & 0b0001_1111;
+        let numerator = (d & 0b1110_0000) >> 5;
+        let dict_size = 2u32.pow(base_size.into()) - (u32::from(numerator)*2u32.pow(15));
+        LZMAProps {
+            lc: 3,
+            lp: 0,
+            pb: 2,
+            dict_size,
+            magic: Some(LZIP_MAGIC)
         }
     }
 }
@@ -212,6 +228,10 @@ impl<R: Read, W: Write> fmt::Display for LZMADecoder<R, W> {
 }
 
 impl<R: Read, W: Write> LZMADecoder<R, W> {
+    pub fn is_lzip(&self) -> bool {
+        self.props.magic.is_some()
+    }
+    
     pub fn with_props(props: LZMAProps, input: R, output: W) -> LZMADecoder<R, W> {
         LZMADecoder {
             props,
@@ -227,12 +247,23 @@ impl<R: Read, W: Write> LZMADecoder<R, W> {
     }
 
     pub fn new(mut input: R, output: W) -> LZMADecoder<R, W> {
-        let mut raw_props: [Byte; 5] = [0; 5];
-        input.read_exact(&mut raw_props).expect("Failed to read properties from input source");
-        let props = LZMAProps::decode_properties(&raw_props);
-        let mut raw_unpack_size: [Byte; 8] = [0; 8];
-        input.read_exact(&mut raw_unpack_size).expect("Failed to read uncompressed size from input source");
-        let unpack_size = u64::from_le_bytes(raw_unpack_size);
+        let mut first_five: [Byte; 5] = [0; 5];
+        input.read_exact(&mut first_five).expect("Failed to read first five bytes of header");
+        let is_lzip = first_five[..4] == LZIP_MAGIC;
+        let props = if is_lzip {
+            let mut d = [0u8; 1];
+            input.read_exact(&mut d).expect("Failed to read coded dictionary size");
+            LZMAProps::lzip_properties(d[0])
+        } else {
+            LZMAProps::decode_lzma_properties(&first_five[..])
+        };
+        let unpack_size = if is_lzip {
+            std::u64::MAX
+        } else {
+            let mut raw_unpack_size: [Byte; 8] = [0; 8];
+            input.read_exact(&mut raw_unpack_size).expect("Failed to read uncompressed size from input source");
+            u64::from_le_bytes(raw_unpack_size)
+        };
         let literal_probs = vec![PROB_INIT_VAL; 0x300<<(props.lc + props.lp)];
         let dict_size = props.dict_size;
         LZMADecoder {
