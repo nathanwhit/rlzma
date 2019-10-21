@@ -25,6 +25,10 @@ impl<R: Read> LZMARangeDecoder<R> {
         }
     }
 
+    pub(crate) fn instream(&mut self) -> &mut LZMAInputStream<R> {
+        &mut self.instream
+    }
+
     pub fn init(&mut self) -> Result<()> {
         let b = self.instream.read_byte();
         self.code = (self.code << 8) | u32::from(self.instream.read_byte());

@@ -231,7 +231,26 @@ impl<R: Read, W: Write> LZMADecoder<R, W> {
     pub fn is_lzip(&self) -> bool {
         self.props.magic.is_some()
     }
-    
+
+    pub fn verify_decomp(&mut self) -> Result<()> {
+        let mut verif_data = [0u8; 20];
+        self.input_reader().read_exact(&mut verif_data).map_err(|_e| LZMAError::NotEnoughInput(String::from("verification data, but input ended prematurely")))?;
+        let correct_crc = u32::from_le_bytes(verif_data[..4].try_into().expect("Failed to read CRC for verification"));
+        let calc_crc = self.out_window.finalize_crc();
+        // FIXME: Better error msg
+        if correct_crc != calc_crc {
+            return Err(LZMAError::StreamCorrupted);
+        }
+        let correct_uncompressed_size = u64::from_le_bytes(verif_data[4..12].try_into().expect("Failed to read uncompressed data size for verification"));
+        let uncompressed_size = std::u64::MAX - self.unpack_size;
+        
+        // FIXME: Better error msg
+        if uncompressed_size != correct_uncompressed_size {
+            return Err(LZMAError::StreamCorrupted);
+        }
+        Ok(())
+    }
+
     pub fn with_props(props: LZMAProps, input: R, output: W) -> LZMADecoder<R, W> {
         LZMADecoder {
             props,
@@ -403,6 +422,9 @@ impl<R: Read, W: Write> LZMADecoder<R, W> {
                             rep0 = self.dist_dec.decode_distance(len, &mut self.range_dec)?;
                             if rep0 == 0xFFFF_FFFF {
                                 return if self.range_dec.is_finished() {
+                                    if self.is_lzip() {
+                                        self.verify_decomp()?;
+                                    }
                                     Ok(LZMADecoderRes::FinishedMarked)
                                 } else {
                                     bail!(LZMAError::EarlyEndMarker);
@@ -520,6 +542,10 @@ impl<R: Read, W: Write> LZMADecoder<R, W> {
         }
         self.out_window.copy_match(rep0 + 1, len);
         self.unpack_size -= len as u64;
+    }
+
+    fn input_reader(&mut self) -> &mut BufReader<R, buf_redux::policy::MinBuffered>  {
+        self.range_dec.instream().reader()
     }
 
     #[cfg(feature = "debugging")]

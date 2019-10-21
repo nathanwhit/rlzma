@@ -2,6 +2,8 @@ use buf_redux::policy::MinBuffered;
 use std::io::{Write, Read, BufRead};
 use std::{fmt, fmt::{Display, Debug}};
 pub use buf_redux::{BufReader, BufWriter};
+use crc32fast::Hasher;
+use std::mem;
 pub(crate) type Byte = u8;
 
 #[derive(Debug)]
@@ -11,6 +13,7 @@ pub(crate) struct LZMAOutWindow<T: Write> {
     size: usize,
     pub total_pos: usize,
     pub outstream: LZMAOutputStream<T>,
+    crc_hasher: Hasher
 }
 
 impl<T: Write> Display for LZMAOutWindow<T> {
@@ -31,7 +34,8 @@ impl<T: Write> LZMAOutWindow<T> {
             pos,
             size,
             total_pos,
-            outstream
+            outstream,
+            crc_hasher: Hasher::new()
         }
     }
     fn is_full(&self) -> bool {
@@ -41,6 +45,7 @@ impl<T: Write> LZMAOutWindow<T> {
         self.total_pos += 1;
         if self.is_full() {
             self.pos = 0;
+            self.crc_hasher.update(&self.buf);
             self.outstream.0.write_all(&self.buf).unwrap();
         }
         self.buf[self.pos] = b;
@@ -64,11 +69,18 @@ impl<T: Write> LZMAOutWindow<T> {
     pub(crate) fn is_empty(&self) -> bool {
         self.pos == 0 && !self.is_full()
     }
+
+    pub(crate) fn finalize_crc(&mut self) -> u32 {
+        self.crc_hasher.update(&self.buf[..self.pos]);
+        let hasher = mem::replace(&mut self.crc_hasher, Hasher::new());
+        hasher.finalize()
+    }
 }
 
 impl<T: Write> std::ops::Drop for LZMAOutWindow<T> {
     fn drop(&mut self) {
         self.outstream.0.write_all(&self.buf[..self.pos]).expect("Failed to write buffer on drop");
+        self.crc_hasher.update(&self.buf);
     }
 }
 
@@ -92,6 +104,9 @@ impl<R: Read> LZMAInputStream<R> {
         LZMAInputStream(
             BufReader::new(input).set_policy(MinBuffered(4))
         )
+    }
+    pub(crate) fn reader(&mut self) -> &mut BufReader<R, MinBuffered> {
+        &mut self.0
     }
 }
 
