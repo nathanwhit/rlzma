@@ -9,11 +9,12 @@ exclude = ["c_version/**/*", "cpp_version/**/*"]
 
 [dependencies]
 buf_redux = "0.8.4"
+thiserror = "1.0.2"
 crc32fast = "1.2.0"
 
-log = {version = "0.4.8", optional = true}
-env_logger = {version = "0.6.2", optional = true}
-rand = {version = "0.7.2", optional = true}
+log = { version = "0.4.8", optional = true }
+env_logger = { version = "0.7.1", optional = true }
+rand = { version = "0.7.2", optional = true }
 
 [dev-dependencies]
 criterion = "0.3.0"
