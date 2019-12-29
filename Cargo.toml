@@ -9,7 +9,7 @@ exclude = ["c_version/**/*", "cpp_version/**/*"]
 
 [dependencies]
 buf_redux = "0.8.4"
-thiserror = "1.0.2"
+thiserror = "1.0.9"
 crc32fast = "1.2.0"
 
 log = { version = "0.4.8", optional = true }
