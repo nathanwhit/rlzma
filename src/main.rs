@@ -1,6 +1,6 @@
-extern crate rustlzma;
+extern crate rlzma;
 
-use rustlzma::lzma::decoder::{LZMADecoder};
+use rlzma::lzma::decoder::{LZMADecoder};
 use std::fs::{File};
 use std::path::{Path, PathBuf};
 use std::process::exit;

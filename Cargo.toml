@@ -1,5 +1,5 @@
 [package]
-name = "rustlzma"
+name = "rlzma"
 version = "0.1.0"
 authors = ["nathanwhit <nathan.whitaker01@gmail.com>"]
 edition = "2018"
@@ -41,6 +41,6 @@ harness = false
 bench = false
 
 [[bin]]
-name = "rustlzma"
+name = "rlzma"
 path = "src/main.rs"
 bench = false

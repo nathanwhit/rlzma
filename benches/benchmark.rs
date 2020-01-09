@@ -1,7 +1,7 @@
 use criterion::{criterion_main, criterion_group, Criterion};
 
-extern crate rustlzma;
-use rustlzma::lzma::decoder::LZMADecoder;
+extern crate rlzma;
+use rlzma::lzma::decoder::LZMADecoder;
 use std::fs::File;
 use std::io::{Seek, SeekFrom};
 use std::path::Path;
